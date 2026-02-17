@@ -35,7 +35,7 @@ jobs:
           git clone https://github.com/openssl/openssl.git
           cd openssl
           git fetch --tags
-          git checkout openssl-3.3.2  # 改成 3.3.2（clang 支持更好，gcc 检查少）
+          git checkout openssl-3.6.1  # 改成 3.3.2（clang 支持更好，gcc 检查少）
 
           # 强制 clang 环境
           export ANDROID_NDK_HOME=/opt/ndk
