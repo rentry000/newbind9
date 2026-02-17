@@ -20,18 +20,7 @@ jobs:
           sudo apt install -yqq --no-install-recommends \
             build-essential pkg-config meson ninja-build wget unzip git autoconf libtool \
             python3-ply python3-jinja2 python3-setuptools ca-certificates
-      - name: Cross-compile OpenSSL for Android arm64 (static)
-        run: |
-          git clone https://github.com/openssl/openssl.git
-          cd openssl
-          git checkout OpenSSL_3_0_13  # 匹配你的日志版本
-          ./Configure android-arm64 no-shared -static \
-          --prefix=/opt/openssl-android \
-          --openssldir=/opt/openssl-android/ssl \
-          -D__ANDROID_API__=34
-          make -j$(nproc)
-          make install_sw install_ssldirs
-
+      
       - name: Download Android NDK r26d
         run: |
           NDK_VERSION="r26d"
@@ -41,6 +30,17 @@ jobs:
           mv android-ndk-${NDK_VERSION} /opt/ndk
           echo "ANDROID_NDK=/opt/ndk" >> $GITHUB_ENV
           echo "PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" >> $GITHUB_ENV
+      - name: Cross-compile OpenSSL for Android arm64 (static)
+        run: |
+          git clone https://github.com/openssl/openssl.git
+          cd openssl
+          git checkout openssl-3.0.13  # 匹配你的日志版本
+          ./Configure android-arm64 no-shared -static \
+          --prefix=/opt/openssl-android \
+          --openssldir=/opt/openssl-android/ssl \
+          -D__ANDROID_API__=34
+          make -j$(nproc)
+          make install_sw install_ssldirs
 
       - name: Cross-compile libuv for Android arm64 (static)
         run: |
