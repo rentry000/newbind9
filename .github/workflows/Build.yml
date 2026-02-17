@@ -1,9 +1,9 @@
 name: Build BIND9 9.21.17 for arm64
 
 on:
-  workflow_dispatch:          # 手动触发（推荐先手动跑一次看结果）
+  workflow_dispatch:
   # schedule:
-  #   - cron: '0 3 * * *'   # 如需每天自动，取消注释
+  #   - cron: '0 3 * * *'
 
 permissions:
   contents: write
@@ -29,37 +29,38 @@ jobs:
       - name: Download BIND 9.21.17 source from ftp.isc.org
         run: |
           set -e
+
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
           URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
 
-          echo "Downloading from: $URL"
-          wget --no-verbose --show-error --fail -O "$SRC_FILE" "$URL" || {
-            echo "ERROR: Download failed! Please check the URL or network."
-            echo "Trying to list directory for debug:"
-            curl -s --fail https://ftp.isc.org/isc/bind9/${VERSION}/ || echo "Directory listing also failed."
-            ls -lh . || true
-            exit 1
-          }
+          echo "Version  : ${VERSION}"
+          echo "File     : ${SRC_FILE}"
+          echo "Full URL : ${URL}"
 
-          if [[ ! -s "$SRC_FILE" ]]; then
-            echo "ERROR: Downloaded file is empty or does not exist!"
+          wget -q --tries=3 --timeout=30 -O "\( {SRC_FILE}" " \){URL}"
+
+          if [ \( ? -ne 0 ] || [ ! -s " \){SRC_FILE}" ]; then
+            echo "ERROR: Download failed or file is empty!"
+            echo "Current directory contents:"
             ls -lh . || true
+            echo "Trying to list remote directory:"
+            curl -s --fail "https://ftp.isc.org/isc/bind9/${VERSION}/" || echo "curl directory listing failed"
             exit 1
           fi
 
-          echo "Download successful. File size:"
-          ls -lh "$SRC_FILE"
-          file "$SRC_FILE" || true
+          echo "Download OK. File info:"
+          ls -lh "${SRC_FILE}"
+          file "${SRC_FILE}" || true
 
       - name: Extract source
         run: |
           set -e
           SRC_FILE="bind-9.21.17.tar.xz"
-          echo "Extracting $SRC_FILE ..."
-          tar xf "$SRC_FILE"
+          echo "Extracting ${SRC_FILE} ..."
+          tar xf "${SRC_FILE}"
           mv "bind-9.21.17" bind9-source || {
-            echo "ERROR: Extraction or mv failed!"
+            echo "ERROR: Extraction or rename failed!"
             ls -l . || true
             exit 1
           }
@@ -111,7 +112,7 @@ jobs:
       - name: Show binary info
         run: |
           file artifacts/* 2>/dev/null || true
-          echo "ldd on named (to check linkage):"
+          echo "ldd on named:"
           ldd artifacts/named 2>/dev/null | head -n 15 || echo "named appears mostly static"
 
       - name: Commit binaries to repo root
@@ -127,12 +128,12 @@ jobs:
             git status
 
             git commit -m "Update arm64 binaries from BIND 9.21.17 (ftp.isc.org)" || echo "No changes to commit"
-            git push || echo "Push skipped (maybe no change or protected branch)"
+            git push || echo "Push skipped (maybe no change)"
           else
-            echo "ERROR: No binaries collected → build failed"
-            echo "Last lines of configure.log:"
-            tail -n 30 configure.log || true
-            echo "Last lines of make.log:"
-            tail -n 50 make.log || true
+            echo "ERROR: No binaries collected"
+            echo "configure.log tail:"
+            tail -n 30 ../configure.log || true
+            echo "make.log tail:"
+            tail -n 50 ../make.log || true
             exit 1
           fi
