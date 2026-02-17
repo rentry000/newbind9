@@ -1,9 +1,7 @@
-name: Build BIND9 9.21.17 for Android arm64 (NDK static, features enabled)
+name: Build BIND9 9.21.17 for Android arm64 (NDK static, libuv included)
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '0 3 * * *'
 
 permissions:
   contents: write
@@ -16,11 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install host build dependencies
+      - name: Install host dependencies
         run: |
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
-            build-essential pkg-config meson ninja-build wget unzip \
+            build-essential pkg-config meson ninja-build wget unzip git autoconf libtool \
             python3-ply python3-jinja2 python3-setuptools ca-certificates
 
       - name: Download Android NDK r26d
@@ -31,44 +29,36 @@ jobs:
           unzip -q ${NDK_ZIP}
           mv android-ndk-${NDK_VERSION} /opt/ndk
           echo "ANDROID_NDK=/opt/ndk" >> $GITHUB_ENV
+          echo "PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Cross-compile libuv for Android arm64 (static)
+        run: |
+          git clone https://github.com/libuv/libuv.git
+          cd libuv
+          git checkout v1.48.0  # 最新稳定版，BIND 推荐 >=1.40
+          ./autogen.sh
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=/opt/libuv-android \
+            CC=aarch64-linux-android34-clang \
+            CXX=aarch64-linux-android34-clang++ \
+            AR=llvm-ar \
+            RANLIB=llvm-ranlib \
+            STRIP=llvm-strip \
+            --disable-shared --enable-static \
+            --with-pic
+          make -j$(nproc)
+          make install
 
       - name: Download BIND 9.21.17 source
         run: |
-          set -e
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
-          echo "Downloading from: $URL"
-          wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
+          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
+          wget -c "$URL"
           if [ ! -s "$SRC_FILE" ]; then echo "Download failed"; exit 1; fi
-
-      - name: Extract source
-        run: |
-          set -e
-          SRC_FILE="bind-9.21.17.tar.xz"
-
-          echo "=== 当前目录（下载后） ==="
-          ls -lh .
-
           tar xf "$SRC_FILE"
-
-          echo "=== 解压后目录 ==="
-          ls -lh .
-
-          if [ ! -d "bind-9.21.17" ]; then
-            echo "ERROR: bind-9.21.17 目录未出现！解压失败或 tarball 有问题。"
-            exit 1
-          fi
-
-          mv bind-9.21.17 bind9-source || { echo "mv 失败"; exit 1; }
-
-          echo "=== bind9-source 检查 ==="
-          ls -lh bind9-source
-
-          if [ ! -f "bind9-source/meson.build" ]; then
-            echo "ERROR: meson.build 不存在！"
-            exit 1
-          fi
+          mv "bind-${VERSION}" bind9-source
 
       - name: Create Meson cross file
         run: |
@@ -87,16 +77,17 @@ jobs:
           endian = 'little'
 
           [properties]
-          needs_exe_wrapper = true
+          sys_root = '/opt/ndk/sysroot'
+          c_args = ['-I/opt/libuv-android/include']
+          cpp_args = ['-I/opt/libuv-android/include']
+          pkg_config_libdir = '/opt/libuv-android/lib/pkgconfig'
           EOF
 
-      - name: Meson setup && Compile
+      - name: Meson setup && Compile BIND
         working-directory: bind9-source
+        env:
+          PKG_CONFIG_PATH: /opt/libuv-android/lib/pkgconfig
         run: |
-          set -e
-          pwd
-          ls -l meson.build ../cross-arm64.ini || true
-
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
             --prefix=/data/adb/bind9 \
@@ -108,39 +99,24 @@ jobs:
             -Didn=enabled \
             -Ddnstap=auto \
             -Db_staticpic=true \
-            --buildtype=release 2>&1 | tee ../meson-setup.log
+            --buildtype=release
 
-          meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
-
-          echo "Built executables:"
-          find ../build -type f -executable -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone 2>/dev/null || true
+          meson compile -C ../build -v
 
       - name: Collect binaries
         run: |
           mkdir -p artifacts
           find build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \;
-
-          ls -lh artifacts/ || true
-          if [ -z "$(ls artifacts/ 2>/dev/null)" ]; then
-            echo "No binaries! Check logs."
-            tail -n 50 meson-setup.log
-            tail -n 50 meson-compile.log
-            exit 1
-          fi
-
-      - name: Binary info
-        run: |
-          file artifacts/* 2>/dev/null || true
-          for f in artifacts/*; do echo "Deps of $f:"; readelf -d "$f" | grep NEEDED || echo "No dynamic deps"; done
+          ls -lh artifacts/
 
       - name: Commit binaries
         run: |
-          if [[ -n "$(ls artifacts/ 2>/dev/null)" ]]; then
+          if ls artifacts/* >/dev/null 2>&1; then
             cp -v artifacts/* ./
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update Android arm64 BIND 9.21.17 (NDK)" || echo "No changes"
+            git commit -m "Update Android arm64 BIND 9.21.17 (NDK + libuv static)" || echo "No changes"
             git push || echo "Push skipped"
           else
             exit 1
