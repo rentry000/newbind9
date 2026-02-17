@@ -16,16 +16,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies (including Meson + Ninja)
+      - name: Install build dependencies (Meson + Ninja + BIND deps)
         run: |
           set -e
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
-            build-essential pkg-config \
+            build-essential pkg-config meson ninja-build \
             libssl-dev libjson-c-dev liburcu-dev libxml2-dev \
             libjemalloc-dev liblmdb-dev libnghttp2-dev zlib1g-dev \
-            python3-ply python3-jinja2 python3-setuptools \
-            meson ninja-build wget xz-utils ca-certificates
+            libuv1-dev python3-ply python3-jinja2 python3-setuptools \
+            wget xz-utils ca-certificates
 
       - name: Download BIND 9.21.17 source from ftp.isc.org
         run: |
@@ -41,6 +41,14 @@ jobs:
 
           wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
 
+          if [ ! -s "bind-9.21.17.tar.xz" ]; then
+            echo "ERROR: Downloaded file is empty or missing!"
+            ls -lh . || true
+            exit 1
+          fi
+
+          echo "Downloaded OK:"
+          ls -lh bind-9.21.17.tar.xz
 
       - name: Extract source
         run: |
@@ -48,41 +56,33 @@ jobs:
           tar xf bind-9.21.17.tar.xz
           mv bind-9.21.17 bind9-source
           ls -ld bind9-source
-          ls bind9-source/meson.build || { echo "meson.build not found! Wrong version?"; exit 1; }
+          ls bind9-source/meson.build || { echo "meson.build missing! Wrong tarball?"; exit 1; }
 
-      - name: Configure with Meson && Compile with Ninja
+      - name: Meson setup && Compile
         working-directory: ./bind9-source
         run: |
           set -e
           pwd
           ls -l meson.build meson_options.txt || true
 
-          echo "Running meson setup..."
+          echo "Meson setup..."
           meson setup ../build \
             --prefix=/usr/local/bind9 \
-            -Dopenssl=enabled \
-            -Djson-c=enabled \
-            -Dlibxml2=enabled \
-            -Durcu=enabled \
-            -Djemalloc=enabled \
-            -Dlmdb=enabled \
-            -Dnghttp2=enabled \
-            -Dzlib=enabled \
-            -Dtests=disabled \
-            -Dfull-report=true \
-            -Dlinux-caps=false \
-            -Dthreads=false \
-            -Db_lto=true \
             -Doptimization=2 \
+            -Dnamed-lto=auto \
+            -Ddoh=enabled \
+            -Dzlib=enabled \
+            -Didn=enabled \
+            -Ddnstap=disabled \
             -Db_staticpic=true 2>&1 | tee ../meson-setup.log
 
-          echo "Running meson compile..."
+          echo "Meson compile..."
           meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
-          echo "Compile finished. Checking binaries in build dir..."
-          ls -lh ../build/bin/named/named ../build/bin/dig/dig || true
+          echo "Build done. Checking binaries:"
+          ls -lh ../build/bin/named/named ../build/bin/dig/dig ../build/bin/rndc/rndc || true
 
-      - name: Collect binaries to root
+      - name: Collect binaries
         run: |
           set -e
           mkdir -p artifacts
@@ -97,9 +97,10 @@ jobs:
 
           ls -lh artifacts/ || true
 
-      - name: Show binary info
+      - name: Binary info
         run: |
           file artifacts/* 2>/dev/null || true
+          echo "ldd named:"
           ldd artifacts/named 2>/dev/null | head -n 15 || echo "mostly static"
 
       - name: Commit binaries to repo root
@@ -110,11 +111,11 @@ jobs:
             git config user.name  "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update arm64 binaries from BIND 9.21.17 (Meson build)" || echo "No changes"
+            git commit -m "Update arm64 binaries BIND 9.21.17 (Meson)" || echo "No changes"
             git push || echo "Push skipped"
           else
-            echo "No binaries → build failed"
-            tail -n 30 meson-setup.log || true
+            echo "Build failed - no binaries"
+            tail -n 40 meson-setup.log || true
             tail -n 50 meson-compile.log || true
             exit 1
           fi
