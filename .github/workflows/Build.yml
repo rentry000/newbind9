@@ -34,14 +34,24 @@ jobs:
         run: |
           git clone https://github.com/openssl/openssl.git
           cd openssl
-          git checkout openssl-3.0.13  # 匹配你的日志版本
+          git fetch --tags
+          git checkout openssl-3.0.13 || { echo "Tag not found! Listing similar tags:"; git tag -l | grep 3.0.13; exit 1; }
+
+          # 强制使用 NDK clang，绕过 gcc 检查
+          export CC=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang
+          export CXX=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++
+          export AR=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          export RANLIB=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
+          export STRIP=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+
+          # Android 配置 + static + no-shared + API level
           ./Configure android-arm64 no-shared -static \
-          --prefix=/opt/openssl-android \
-          --openssldir=/opt/openssl-android/ssl \
-          -D__ANDROID_API__=34
+            --prefix=/opt/openssl-android \
+            --openssldir=/opt/openssl-android/ssl \
+            -D__ANDROID_API__=34
+
           make -j$(nproc)
           make install_sw install_ssldirs
-
       - name: Cross-compile libuv for Android arm64 (static)
         run: |
           git clone https://github.com/libuv/libuv.git
