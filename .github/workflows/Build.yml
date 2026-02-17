@@ -1,4 +1,4 @@
-name: Build BIND9 9.21.17 for arm64
+name: Build BIND9 9.21.17 for Android arm64 (NDK static, features enabled)
 
 on:
   workflow_dispatch:
@@ -10,126 +10,111 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest  # x86 runner for cross-compilation
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies (Meson + Ninja + BIND deps)
+      - name: Install host build dependencies
         run: |
-          set -e
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
-            build-essential pkg-config meson ninja-build \
-            libssl-dev libjson-c-dev liburcu-dev libxml2-dev \
-            libjemalloc-dev liblmdb-dev libnghttp2-dev zlib1g-dev \
-            libuv1-dev libcap-dev libidn2-dev \
-            python3-ply python3-jinja2 python3-setuptools \
-            wget xz-utils ca-certificates
+            build-essential pkg-config meson ninja-build wget unzip \
+            python3-ply python3-jinja2 python3-setuptools ca-certificates
 
-      - name: Download BIND 9.21.17 source from ftp.isc.org
+      - name: Download Android NDK r26d
         run: |
-          set -e
+          NDK_VERSION="r26d"
+          NDK_ZIP="android-ndk-${NDK_VERSION}-linux.zip"
+          wget -q https://dl.google.com/android/repository/${NDK_ZIP}
+          unzip -q ${NDK_ZIP}
+          mv android-ndk-${NDK_VERSION} /opt/ndk
+          echo "ANDROID_NDK=/opt/ndk" >> $GITHUB_ENV
 
+      - name: Download BIND 9.21.17 source
+        run: |
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
+          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
+          wget -q --show-error "\( {URL}" -O " \){SRC_FILE}"
+          if [ ! -s "${SRC_FILE}" ]; then echo "Download failed"; exit 1; fi
+          tar xf "${SRC_FILE}"
+          mv "bind-${VERSION}" bind9-source
 
-          echo "Version  : ${VERSION}"
-          echo "File     : ${SRC_FILE}"
-          echo "Full URL : ${URL}"
-
-          wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
-
-          if [ ! -s "bind-9.21.17.tar.xz" ]; then
-            echo "ERROR: Downloaded file is empty or missing!"
-            ls -lh . || true
-            exit 1
-          fi
-
-          echo "Downloaded OK:"
-          ls -lh bind-9.21.17.tar.xz
-
-      - name: Extract source
+      - name: Create Meson cross file for Android arm64
         run: |
-          set -e
-          tar xf bind-9.21.17.tar.xz
-          mv bind-9.21.17 bind9-source
-          ls -ld bind9-source
-          ls bind9-source/meson.build || { echo "meson.build missing! Wrong tarball?"; exit 1; }
+          cat > cross-arm64.ini << 'EOF'
+          [binaries]
+          c = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang'
+          cpp = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++'
+          ar = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+          strip = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+          pkgconfig = 'pkg-config'
 
-      - name: Meson setup && Compile
+          [host_machine]
+          system = 'android'
+          cpu_family = 'aarch64'
+          cpu = 'armv8'
+          endian = 'little'
+
+          [properties]
+          needs_exe_wrapper = true
+          EOF
+
+      - name: Meson setup && Compile (Android cross-compile, static, features enabled)
         working-directory: ./bind9-source
         run: |
           set -e
-          pwd
-          ls -l meson.build || true
-
-          echo "Meson setup..."
           meson setup ../build \
-            --prefix=/usr/local/bind9 \
+            --cross-file ../cross-arm64.ini \
+            --prefix=/data/adb/bind9 \
+            -Ddefault_library=static \
             -Doptimization=2 \
             -Dnamed-lto=auto \
             -Ddoh=enabled \
             -Dzlib=enabled \
-            -Ddnstap=disabled \
-            -Db_staticpic=true 2>&1 | tee ../meson-setup.log
+            -Didn=enabled \
+            -Ddnstap=auto \          # auto 检测，如果依赖齐全就启用
+            -Db_staticpic=true \
+            --buildtype=release 2>&1 | tee ../meson-setup.log
 
-          echo "Meson compile..."
           meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
-          echo "Compile done. Searching for binaries in build dir:"
+          echo "Built executables:"
           find ../build -type f -executable -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone 2>/dev/null || true
 
-          echo "Full ls of build/bin if exists:"
-          ls -R ../build/bin 2>/dev/null || true
-
-      - name: Collect binaries (from build dir fallback, no install needed)
+      - name: Collect binaries
         run: |
-          set -e
           mkdir -p artifacts
-
-          # 常见 Meson 布局：build/bin/<tool>/<tool>
-          cp -v build/bin/named/named               artifacts/named              2>/dev/null || true
-          cp -v build/bin/dig/dig                   artifacts/dig                2>/dev/null || true
-          cp -v build/bin/dig/host                  artifacts/host               2>/dev/null || true
-          cp -v build/bin/dig/delv                  artifacts/delv               2>/dev/null || true
-          cp -v build/bin/check/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
-          cp -v build/bin/check/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
-          cp -v build/bin/rndc/rndc                 artifacts/rndc               2>/dev/null || true
-
-          # 如果上面失败，尝试宽松 find 并复制（假设 named 等直接在 bin/ 或其他子目录）
           find build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \;
 
-          # 调试输出
-          echo "Artifacts after copy:"
           ls -lh artifacts/ || true
-
-          if [[ -z "$(ls artifacts/ 2>/dev/null)" ]]; then
-            echo "Still no files! Check meson-compile.log for build errors."
-            tail -n 50 meson-compile.log || true
+          if [ -z "$(ls artifacts/ 2>/dev/null)" ]; then
+            echo "No binaries collected! Check logs."
+            tail -n 50 meson-setup.log
+            tail -n 50 meson-compile.log
             exit 1
           fi
 
-      - name: Binary info
+      - name: Binary info (check linkage)
         run: |
           file artifacts/* 2>/dev/null || true
-          echo "ldd named (if exists):"
-          ldd artifacts/named 2>/dev/null | head -n 15 || echo "No named or mostly static"
+          for f in artifacts/*; do
+            echo "Dependencies of $f:"
+            readelf -d "$f" | grep NEEDED || echo "No dynamic libs (static or minimal)"
+          done
 
       - name: Commit binaries to repo root
         run: |
-          set -e
           if [[ -n "$(ls artifacts/ 2>/dev/null)" ]]; then
             cp -v artifacts/* ./
-            git config user.name  "GitHub Actions"
+            git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update arm64 binaries BIND 9.21.17 (Meson)" || echo "No changes"
+            git commit -m "Update Android-compatible arm64 binaries BIND 9.21.17 (NDK static, features enabled)" || echo "No changes"
             git push || echo "Push skipped"
           else
-            echo "Build failed - no binaries found"
-            tail -n 50 meson-compile.log || true
+            echo "Build failed"
             exit 1
           fi
