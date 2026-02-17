@@ -16,15 +16,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install build dependencies (including Meson + Ninja)
         run: |
           set -e
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
-            build-essential autoconf automake libtool pkg-config \
+            build-essential pkg-config \
             libssl-dev libjson-c-dev liburcu-dev libxml2-dev \
             libjemalloc-dev liblmdb-dev libnghttp2-dev zlib1g-dev \
-            bison flex python3-ply wget xz-utils ca-certificates
+            python3-ply python3-jinja2 python3-setuptools \
+            meson ninja-build wget xz-utils ca-certificates
 
       - name: Download BIND 9.21.17 source from ftp.isc.org
         run: |
@@ -40,87 +41,80 @@ jobs:
 
           wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
 
+
       - name: Extract source
         run: |
           set -e
-          SRC_FILE="bind-9.21.17.tar.xz"
-          echo "Extracting ${SRC_FILE} ..."
-          tar xf "${SRC_FILE}"
-          mv "bind-9.21.17" bind9-source || {
-            echo "ERROR: Extraction or rename failed!"
-            ls -l . || true
-            exit 1
-          }
+          tar xf bind-9.21.17.tar.xz
+          mv bind-9.21.17 bind9-source
           ls -ld bind9-source
+          ls bind9-source/meson.build || { echo "meson.build not found! Wrong version?"; exit 1; }
 
-      - name: Configure && Compile BIND9
+      - name: Configure with Meson && Compile with Ninja
         working-directory: ./bind9-source
         run: |
           set -e
-          echo "Running autoreconf..."
-          autoreconf -fi
+          pwd
+          ls -l meson.build meson_options.txt || true
 
-          echo "Running configure..."
-          ./configure \
+          echo "Running meson setup..."
+          meson setup ../build \
             --prefix=/usr/local/bind9 \
-            --with-openssl=yes \
-            --with-libjson=yes \
-            --with-libxml2=yes \
-            --with-liburcu=yes \
-            --with-jemalloc=yes \
-            --with-lmdb=yes \
-            --enable-full-report \
-            --disable-linux-caps \
-            --disable-threads \
-            CFLAGS="-O2 -pipe -fPIC" \
-            LDFLAGS="-static-libgcc -static-libstdc++" 2>&1 | tee ../configure.log
+            -Dopenssl=enabled \
+            -Djson-c=enabled \
+            -Dlibxml2=enabled \
+            -Durcu=enabled \
+            -Djemalloc=enabled \
+            -Dlmdb=enabled \
+            -Dnghttp2=enabled \
+            -Dzlib=enabled \
+            -Dtests=disabled \
+            -Dfull-report=true \
+            -Dlinux-caps=false \
+            -Dthreads=false \
+            -Db_lto=true \
+            -Doptimization=2 \
+            -Db_staticpic=true 2>&1 | tee ../meson-setup.log
 
-          echo "Running make..."
-          make -j$(nproc) V=1 2>&1 | tee ../make.log
+          echo "Running meson compile..."
+          meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
-          echo "Build finished. Checking key binaries..."
-          ls -lh bin/named/named bin/dig/dig bin/rndc/rndc || true
+          echo "Compile finished. Checking binaries in build dir..."
+          ls -lh ../build/bin/named/named ../build/bin/dig/dig || true
 
       - name: Collect binaries to root
         run: |
           set -e
           mkdir -p artifacts
 
-          cp -v bind9-source/bin/named/named               artifacts/named              2>/dev/null || true
-          cp -v bind9-source/bin/dig/dig                   artifacts/dig                2>/dev/null || true
-          cp -v bind9-source/bin/dig/host                  artifacts/host               2>/dev/null || true
-          cp -v bind9-source/bin/dig/delv                  artifacts/delv               2>/dev/null || true
-          cp -v bind9-source/bin/check/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
-          cp -v bind9-source/bin/check/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
-          cp -v bind9-source/bin/rndc/rndc                 artifacts/rndc               2>/dev/null || true
+          cp -v build/bin/named/named               artifacts/named              2>/dev/null || true
+          cp -v build/bin/dig/dig                   artifacts/dig                2>/dev/null || true
+          cp -v build/bin/dig/host                  artifacts/host               2>/dev/null || true
+          cp -v build/bin/dig/delv                  artifacts/delv               2>/dev/null || true
+          cp -v build/bin/check/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
+          cp -v build/bin/check/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
+          cp -v build/bin/rndc/rndc                 artifacts/rndc               2>/dev/null || true
 
           ls -lh artifacts/ || true
 
       - name: Show binary info
         run: |
           file artifacts/* 2>/dev/null || true
-          echo "ldd on named:"
-          ldd artifacts/named 2>/dev/null | head -n 15 || echo "named appears mostly static"
+          ldd artifacts/named 2>/dev/null | head -n 15 || echo "mostly static"
 
       - name: Commit binaries to repo root
         run: |
           set -e
           if [[ -n "$(ls artifacts/ 2>/dev/null)" ]]; then
             cp -v artifacts/* ./
-
             git config user.name  "GitHub Actions"
             git config user.email "actions@github.com"
-
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git status
-
-            git commit -m "Update arm64 binaries from BIND 9.21.17 (ftp.isc.org)" || echo "No changes to commit"
-            git push || echo "Push skipped (maybe no change)"
+            git commit -m "Update arm64 binaries from BIND 9.21.17 (Meson build)" || echo "No changes"
+            git push || echo "Push skipped"
           else
-            echo "ERROR: No binaries collected"
-            echo "configure.log tail:"
-            tail -n 30 ../configure.log || true
-            echo "make.log tail:"
-            tail -n 50 ../make.log || true
+            echo "No binaries → build failed"
+            tail -n 30 meson-setup.log || true
+            tail -n 50 meson-compile.log || true
             exit 1
           fi
