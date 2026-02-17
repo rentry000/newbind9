@@ -32,45 +32,46 @@ jobs:
           echo "PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" >> $GITHUB_ENV
       - name: Cross-compile OpenSSL for Android arm64 (static)
         run: |
-           git clone https://github.com/openssl/openssl.git
-           cd openssl
-           git checkout openssl-3.3.2  # 固定 3.3.2（稳定，clang 支持较好）
-
-           # 环境变量设置
-           export ANDROID_NDK_HOME=/opt/ndk
-           # 确保工具链路径在最前面
-           export PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+          git clone https://github.com/openssl/openssl.git
+          cd openssl
+          git checkout openssl-3.3.2  # 固定 3.3.2（稳定，clang 支持较好）
+ 
+          # 环境变量设置
+          export ANDROID_NDK_HOME=/opt/ndk
+          # 确保工具链路径在最前面
+          export PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
     
-           # 关键修改：不要设置 CROSS_COMPILE
-           # export CROSS_COMPILE=aarch64-linux-android34-  # ❌ 注释或删除这一行
+          # 关键修改：不要设置 CROSS_COMPILE
+          # export CROSS_COMPILE=aarch64-linux-android34-  # ❌ 注释或删除这一行
 
-           # 直接指定编译器名称（注意：对于 API 21+，通常直接使用 aarch64-linux-android-clang 即可，NDK 会自动处理 API 级别）
-           export CC=aarch64-linux-android-clang
-           export CXX=aarch64-linux-android-clang++
-           export AR=llvm-ar
-           export RANLIB=llvm-ranlib
-           export STRIP=llvm-strip
-           export LD=ld.lld
+          # 直接指定编译器名称（注意：对于 API 21+，通常直接使用 aarch64-linux-android-clang 即可，NDK 会自动处理 API 级别）
+          export CC=aarch64-linux-android-clang
+          export CXX=aarch64-linux-android-clang++
+          export AR=llvm-ar
+          export RANLIB=llvm-ranlib
+          export STRIP=llvm-strip
+          export LD=ld.lld
 
-           # 配置
-           # 关键修改：去掉 -static（在参数中通常不需要，由 no-shared 和目标决定），并确保宏定义正确
-           ./Configure android-arm64 no-shared \
-           --prefix=/opt/openssl-android \
-           --openssldir=/opt/openssl-android/ssl \
-           -D__ANDROID_API__=34
+          # 配置
+          # 关键修改：去掉 -static（在参数中通常不需要，由 no-shared 和目标决定），并确保宏定义正确
+          ./Configure android-arm64 no-shared \
+          --prefix=/opt/openssl-android \
+          --openssldir=/opt/openssl-android/ssl \
+          -D__ANDROID_API__=34
 
-           make -j$(nproc)
-           make install_sw install_ssldirs
+          make -j$(nproc)
+          make install_sw install_ssldirs
 
-            # 调试输出
-           ls -l /opt/openssl-android/lib/libcrypto.a /opt/openssl-android/lib/libssl.a || true
-  
-      
+          # 调试输出
+          ls -l /opt/openssl-android/lib/libcrypto.a /opt/openssl-android/lib/libssl.a || true
+
       - name: Cross-compile libuv for Android arm64 (static)
         run: |
           git clone https://github.com/libuv/libuv.git
           cd libuv
-          git checkout v1.48.0  # 最新稳定版，BIND 推荐 >=1.40
+          git checkout v1.48.0 
+          
+          # 最新稳定版，BIND 推荐 >=1.40
           ./autogen.sh
           ./configure \
             --host=aarch64-linux-android \
