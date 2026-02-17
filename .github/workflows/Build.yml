@@ -59,7 +59,7 @@ jobs:
           ls -ld bind9-source
           ls bind9-source/meson.build || { echo "meson.build missing! Wrong tarball?"; exit 1; }
 
-      - name: Meson setup && Compile && Install to staging
+      - name: Meson setup && Compile
         working-directory: ./bind9-source
         run: |
           set -e
@@ -79,36 +79,38 @@ jobs:
           echo "Meson compile..."
           meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
-          echo "Meson install to staging dir..."
-          mkdir -p ../installed
-          meson install -C ../build --destdir=../installed 2>&1 | tee ../meson-install.log
+          echo "Compile done. Searching for binaries in build dir:"
+          find ../build -type f -executable -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone 2>/dev/null || true
 
-          echo "Staging install dir contents:"
-          ls -R ../installed || true
+          echo "Full ls of build/bin if exists:"
+          ls -R ../build/bin 2>/dev/null || true
 
-      - name: Collect binaries from staging install
+      - name: Collect binaries (from build dir fallback, no install needed)
         run: |
           set -e
           mkdir -p artifacts
 
-          # BIND 默认安装到 prefix/bin/ 下
-          STAGING_BIN="../installed/usr/local/bind9/bin"
+          # 常见 Meson 布局：build/bin/<tool>/<tool>
+          cp -v build/bin/named/named               artifacts/named              2>/dev/null || true
+          cp -v build/bin/dig/dig                   artifacts/dig                2>/dev/null || true
+          cp -v build/bin/dig/host                  artifacts/host               2>/dev/null || true
+          cp -v build/bin/dig/delv                  artifacts/delv               2>/dev/null || true
+          cp -v build/bin/check/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
+          cp -v build/bin/check/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
+          cp -v build/bin/rndc/rndc                 artifacts/rndc               2>/dev/null || true
 
-          cp -v ${STAGING_BIN}/named               artifacts/named              2>/dev/null || true
-          cp -v ${STAGING_BIN}/dig                 artifacts/dig                2>/dev/null || true
-          cp -v ${STAGING_BIN}/host                artifacts/host               2>/dev/null || true
-          cp -v ${STAGING_BIN}/delv                artifacts/delv               2>/dev/null || true
-          cp -v ${STAGING_BIN}/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
-          cp -v ${STAGING_BIN}/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
-          cp -v ${STAGING_BIN}/rndc                artifacts/rndc               2>/dev/null || true
+          # 如果上面失败，尝试宽松 find 并复制（假设 named 等直接在 bin/ 或其他子目录）
+          find build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \;
 
-          # 调试：如果上面没找到，列出 staging 所有可执行文件
-          if [[ -z "$(ls artifacts/ 2>/dev/null)" ]]; then
-            echo "No files copied, listing all executables in staging:"
-            find ../installed -type f -executable -print || true
-          fi
-
+          # 调试输出
+          echo "Artifacts after copy:"
           ls -lh artifacts/ || true
+
+          if [[ -z "$(ls artifacts/ 2>/dev/null)" ]]; then
+            echo "Still no files! Check meson-compile.log for build errors."
+            tail -n 50 meson-compile.log || true
+            exit 1
+          fi
 
       - name: Binary info
         run: |
