@@ -34,7 +34,7 @@ jobs:
         run: |
           git clone https://github.com/openssl/openssl.git
           cd openssl
-          git checkout openssl-3.3.2  # 固定 3.3.2（稳定，clang 支持较好）
+          git checkout openssl-3.6.1  # 固定 3.3.2（稳定，clang 支持较好）
  
           # 环境变量设置
           export ANDROID_NDK_HOME=/opt/ndk
