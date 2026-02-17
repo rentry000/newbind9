@@ -24,7 +24,8 @@ jobs:
             build-essential pkg-config meson ninja-build \
             libssl-dev libjson-c-dev liburcu-dev libxml2-dev \
             libjemalloc-dev liblmdb-dev libnghttp2-dev zlib1g-dev \
-            libuv1-dev python3-ply python3-jinja2 python3-setuptools \
+            libuv1-dev libcap-dev \
+            python3-ply python3-jinja2 python3-setuptools \
             wget xz-utils ca-certificates
 
       - name: Download BIND 9.21.17 source from ftp.isc.org
@@ -63,7 +64,7 @@ jobs:
         run: |
           set -e
           pwd
-          ls -l meson.build meson_options.txt || true
+          ls -l meson.build || true
 
           echo "Meson setup..."
           meson setup ../build \
