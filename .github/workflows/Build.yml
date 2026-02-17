@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # x86 runner for cross-compilation
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -32,21 +32,45 @@ jobs:
           mv android-ndk-${NDK_VERSION} /opt/ndk
           echo "ANDROID_NDK=/opt/ndk" >> $GITHUB_ENV
 
-      - name: Download BIND 9.21.17 source from ftp.isc.org
+      - name: Download BIND 9.21.17 source
         run: |
           set -e
-
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
-
-          echo "Version  : ${VERSION}"
-          echo "File     : ${SRC_FILE}"
-          echo "Full URL : ${URL}"
-
+          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
+          echo "Downloading from: $URL"
           wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
+          if [ ! -s "$SRC_FILE" ]; then echo "Download failed"; exit 1; fi
 
-      - name: Create Meson cross file for Android arm64
+      - name: Extract source
+        run: |
+          set -e
+          SRC_FILE="bind-9.21.17.tar.xz"
+
+          echo "=== 当前目录（下载后） ==="
+          ls -lh .
+
+          tar xf "$SRC_FILE"
+
+          echo "=== 解压后目录 ==="
+          ls -lh .
+
+          if [ ! -d "bind-9.21.17" ]; then
+            echo "ERROR: bind-9.21.17 目录未出现！解压失败或 tarball 有问题。"
+            exit 1
+          fi
+
+          mv bind-9.21.17 bind9-source || { echo "mv 失败"; exit 1; }
+
+          echo "=== bind9-source 检查 ==="
+          ls -lh bind9-source
+
+          if [ ! -f "bind9-source/meson.build" ]; then
+            echo "ERROR: meson.build 不存在！"
+            exit 1
+          fi
+
+      - name: Create Meson cross file
         run: |
           cat > cross-arm64.ini << 'EOF'
           [binaries]
@@ -66,10 +90,13 @@ jobs:
           needs_exe_wrapper = true
           EOF
 
-      - name: Meson setup && Compile (Android cross-compile, static, features enabled)
+      - name: Meson setup && Compile
         working-directory: bind9-source
         run: |
           set -e
+          pwd
+          ls -l meson.build ../cross-arm64.ini || true
+
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
             --prefix=/data/adb/bind9 \
@@ -79,7 +106,7 @@ jobs:
             -Ddoh=enabled \
             -Dzlib=enabled \
             -Didn=enabled \
-            -Ddnstap=auto \          # auto 检测，如果依赖齐全就启用
+            -Ddnstap=auto \
             -Db_staticpic=true \
             --buildtype=release 2>&1 | tee ../meson-setup.log
 
@@ -95,30 +122,26 @@ jobs:
 
           ls -lh artifacts/ || true
           if [ -z "$(ls artifacts/ 2>/dev/null)" ]; then
-            echo "No binaries collected! Check logs."
+            echo "No binaries! Check logs."
             tail -n 50 meson-setup.log
             tail -n 50 meson-compile.log
             exit 1
           fi
 
-      - name: Binary info (check linkage)
+      - name: Binary info
         run: |
           file artifacts/* 2>/dev/null || true
-          for f in artifacts/*; do
-            echo "Dependencies of $f:"
-            readelf -d "$f" | grep NEEDED || echo "No dynamic libs (static or minimal)"
-          done
+          for f in artifacts/*; do echo "Deps of $f:"; readelf -d "$f" | grep NEEDED || echo "No dynamic deps"; done
 
-      - name: Commit binaries to repo root
+      - name: Commit binaries
         run: |
           if [[ -n "$(ls artifacts/ 2>/dev/null)" ]]; then
             cp -v artifacts/* ./
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update Android-compatible arm64 binaries BIND 9.21.17 (NDK static, features enabled)" || echo "No changes"
+            git commit -m "Update Android arm64 BIND 9.21.17 (NDK)" || echo "No changes"
             git push || echo "Push skipped"
           else
-            echo "Build failed"
             exit 1
           fi
