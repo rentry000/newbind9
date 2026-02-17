@@ -32,7 +32,7 @@ jobs:
 
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
+          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
 
           echo "Version  : ${VERSION}"
           echo "File     : ${SRC_FILE}"
