@@ -67,7 +67,7 @@ jobs:
           EOF
 
       - name: Meson setup && Compile (Android cross-compile, static, features enabled)
-        working-directory: ./bind9-source
+        working-directory: bind9-source
         run: |
           set -e
           meson setup ../build \
