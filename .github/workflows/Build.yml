@@ -79,14 +79,20 @@ jobs:
           echo "Meson compile..."
           meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
-          echo "Build done. Checking binaries:"
-          ls -lh ../build/bin/named/named ../build/bin/dig/dig ../build/bin/rndc/rndc || true
+          echo "Build done. Full ls of build directory for debug:"
+          ls -R ../build || true
+
+          echo "Looking for named binary in common locations:"
+          find ../build -name named 2>/dev/null || true
+          find ../build -name dig 2>/dev/null || true
+          find ../build -name rndc 2>/dev/null || true
 
       - name: Collect binaries
         run: |
           set -e
           mkdir -p artifacts
 
+          # 尝试常见路径复制（根据 find 结果调整）
           cp -v build/bin/named/named               artifacts/named              2>/dev/null || true
           cp -v build/bin/dig/dig                   artifacts/dig                2>/dev/null || true
           cp -v build/bin/dig/host                  artifacts/host               2>/dev/null || true
@@ -95,13 +101,19 @@ jobs:
           cp -v build/bin/check/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
           cp -v build/bin/rndc/rndc                 artifacts/rndc               2>/dev/null || true
 
+          # 如果上面没找到，尝试更宽松的 find & cp
+          find build -name named -type f -exec cp {} artifacts/named \; 2>/dev/null || true
+          find build -name dig -type f -exec cp {} artifacts/dig \; 2>/dev/null || true
+          find build -name rndc -type f -exec cp {} artifacts/rndc \; 2>/dev/null || true
+          # ... 可以加其他
+
           ls -lh artifacts/ || true
 
       - name: Binary info
         run: |
           file artifacts/* 2>/dev/null || true
-          echo "ldd named:"
-          ldd artifacts/named 2>/dev/null | head -n 15 || echo "mostly static"
+          echo "ldd named (if exists):"
+          ldd artifacts/named 2>/dev/null | head -n 15 || echo "No named or mostly static"
 
       - name: Commit binaries to repo root
         run: |
@@ -111,11 +123,10 @@ jobs:
             git config user.name  "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update arm64 binaries BIND 9.21.17 (Meson, with libidn2)" || echo "No changes"
+            git commit -m "Update arm64 binaries BIND 9.21.17 (Meson)" || echo "No changes"
             git push || echo "Push skipped"
           else
-            echo "Build failed - no binaries"
-            tail -n 40 meson-setup.log || true
+            echo "Build failed - no binaries found"
             tail -n 50 meson-compile.log || true
             exit 1
           fi
