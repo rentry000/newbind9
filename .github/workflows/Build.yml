@@ -1,0 +1,122 @@
+name: Build BIND9 latest for arm64
+
+on:
+  # 手动触发 + 每天自动构建一次（可选）
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'   # UTC 每天03:00，亚洲时间大约中午11点
+
+permissions:
+  contents: write       # 允许 push 到仓库（用于上传二进制）
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm     # 原生 arm64 runner（2025年后免费公共仓库可用）
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt install -yqq --no-install-recommends \
+            build-essential              \
+            autoconf                     \
+            automake                     \
+            libtool                      \
+            pkg-config                   \
+            libssl-dev                   \
+            libjson-c-dev                \
+            liburcu-dev                  \
+            libxml2-dev                  \
+            libjemalloc-dev              \
+            liblmdb-dev                  \
+            libnghttp2-dev               \
+            zlib1g-dev                   \
+            bison                        \
+            flex                         \
+            python3-ply                  \
+            wget                         \
+            xz-utils                     \
+            ca-certificates
+
+      - name: Get latest BIND9 version from ISC
+        id: get_version
+        run: |
+          # 获取最新稳定版（9.20 系列）的版本号
+          LATEST=$(curl -s https://www.isc.org/download/ \
+            | grep -oP 'BIND 9\.\d+\.\d+' \
+            | grep '9.20' | head -1 | awk '{print $3}' || echo "9.20.18")
+
+          # 如果上面抓取失败，就用已知的最新版本
+          if [[ -z "$LATEST" ]]; then
+            LATEST="9.20.18"
+          fi
+
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "Latest BIND version: $LATEST"
+
+      - name: Download BIND9 source
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          wget -O bind.tar.xz "https://downloads.isc.org/isc/bind9/\( {VERSION}/bind- \){VERSION}.tar.xz"
+          tar xf bind.tar.xz
+          mv bind-${VERSION} bind9-source
+
+      - name: Configure & Compile BIND9 (minimal & static-linked as much as possible)
+        working-directory: ./bind9-source
+        run: |
+          autoreconf -fi
+
+          # 尽量静态链接常用库，减少动态依赖
+          ./configure \
+            --prefix=/usr/local/bind9 \
+            --with-openssl=yes \
+            --with-libjson=yes \
+            --with-libxml2=yes \
+            --with-liburcu=yes \
+            --with-jemalloc=yes \
+            --with-lmdb=yes \
+            --enable-full-report \
+            --disable-linux-caps     \
+            --disable-threads        \
+            CFLAGS="-O2 -static-libgcc -static-libstdc++ -fPIC" \
+            LDFLAGS="-static-libgcc -static-libstdc++"
+
+          make -j$(nproc) V=1
+
+      - name: Collect binaries
+        run: |
+          mkdir -p artifacts
+
+          cp -v bind9-source/bin/named/named               artifacts/ 2>/dev/null || true
+          cp -v bind9-source/bin/dig/dig                   artifacts/ 2>/dev/null || true
+          cp -v bind9-source/bin/dig/host                  artifacts/ 2>/dev/null || true
+          cp -v bind9-source/bin/dig/delv                  artifacts/ 2>/dev/null || true
+          cp -v bind9-source/bin/check/named-checkconf     artifacts/ 2>/dev/null || true
+          cp -v bind9-source/bin/check/named-checkzone     artifacts/ 2>/dev/null || true
+          cp -v bind9-source/bin/rndc/rndc                 artifacts/ 2>/dev/null || true
+
+          # 查看生成的文件
+          ls -lh artifacts/
+
+      - name: Show binary info (architecture & dependencies)
+        run: |
+          file artifacts/* 2>/dev/null || true
+          ldd artifacts/named 2>/dev/null || echo "named is (partially) static"
+
+      - name: Commit binaries to repository root
+        run: |
+          # 只在有新文件时才提交
+          if [[ -n "$(ls artifacts/)" ]]; then
+            cp -v artifacts/* ./
+            git config user.name  "GitHub Actions"
+            git config user.email "actions@github.com"
+            git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
+            git commit -m "chore: update arm64 binaries from BIND ${{ steps.get_version.outputs.version }}" || echo "No changes to commit"
+            git push
+          else
+            echo "No binaries found - build failed?"
+            exit 1
+          fi
