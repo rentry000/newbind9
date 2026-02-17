@@ -32,15 +32,19 @@ jobs:
           mv android-ndk-${NDK_VERSION} /opt/ndk
           echo "ANDROID_NDK=/opt/ndk" >> $GITHUB_ENV
 
-      - name: Download BIND 9.21.17 source
+      - name: Download BIND 9.21.17 source from ftp.isc.org
         run: |
+          set -e
+
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
-          wget -q --show-error "\( {URL}" -O " \){SRC_FILE}"
-          if [ ! -s "${SRC_FILE}" ]; then echo "Download failed"; exit 1; fi
-          tar xf "${SRC_FILE}"
-          mv "bind-${VERSION}" bind9-source
+          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
+
+          echo "Version  : ${VERSION}"
+          echo "File     : ${SRC_FILE}"
+          echo "Full URL : ${URL}"
+
+          wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
 
       - name: Create Meson cross file for Android arm64
         run: |
