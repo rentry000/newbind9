@@ -60,7 +60,7 @@ jobs:
           tar xf "$SRC_FILE"
           mv "bind-${VERSION}" bind9-source
 
-      - name: Create Meson cross file
+      - name: Create Meson cross file for Android arm64
         run: |
           cat > cross-arm64.ini << 'EOF'
           [binaries]
@@ -78,9 +78,10 @@ jobs:
 
           [properties]
           sys_root = '/opt/ndk/sysroot'
-          c_args = ['-I/opt/libuv-android/include']
-          cpp_args = ['-I/opt/libuv-android/include']
-          pkg_config_libdir = '/opt/libuv-android/lib/pkgconfig'
+          c_args = ['-I/opt/ndk/sysroot/usr/include']
+          cpp_args = ['-I/opt/ndk/sysroot/usr/include']
+          link_args = ['-L/opt/ndk/sysroot/usr/lib/aarch64-linux-android']
+          pkg_config_libdir = '/opt/ndk/sysroot/usr/lib/aarch64-linux-android/pkgconfig'
           EOF
 
       - name: Meson setup && Compile BIND
