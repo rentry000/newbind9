@@ -58,6 +58,7 @@ jobs:
 
           # 调试：检查输出库
           ls -l /opt/openssl-android/lib/libcrypto* /opt/openssl-android/lib/libssl* || true - name: Cross-compile libuv for Android arm64 (static)
+      - name: Cross-compile libuv for Android arm64 (static)
         run: |
           git clone https://github.com/libuv/libuv.git
           cd libuv
