@@ -24,7 +24,7 @@ jobs:
             build-essential pkg-config meson ninja-build \
             libssl-dev libjson-c-dev liburcu-dev libxml2-dev \
             libjemalloc-dev liblmdb-dev libnghttp2-dev zlib1g-dev \
-            libuv1-dev libcap-dev \
+            libuv1-dev libcap-dev libidn2-dev \
             python3-ply python3-jinja2 python3-setuptools \
             wget xz-utils ca-certificates
 
@@ -73,7 +73,6 @@ jobs:
             -Dnamed-lto=auto \
             -Ddoh=enabled \
             -Dzlib=enabled \
-            -Didn=enabled \
             -Ddnstap=disabled \
             -Db_staticpic=true 2>&1 | tee ../meson-setup.log
 
@@ -112,7 +111,7 @@ jobs:
             git config user.name  "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update arm64 binaries BIND 9.21.17 (Meson)" || echo "No changes"
+            git commit -m "Update arm64 binaries BIND 9.21.17 (Meson, with libidn2)" || echo "No changes"
             git push || echo "Push skipped"
           else
             echo "Build failed - no binaries"
