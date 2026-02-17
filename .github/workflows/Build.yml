@@ -101,8 +101,7 @@ jobs:
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
-          PKG_CONFIG_PATH: /opt/libuv-android/lib/pkgconfig
-          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig
+          PKG_CONFIG_PATH: /opt/libuv-android/lib/pkgconfig:/opt/openssl-android/lib/pkgconfig
         run: |
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
