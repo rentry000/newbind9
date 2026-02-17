@@ -59,7 +59,7 @@ jobs:
           ls -ld bind9-source
           ls bind9-source/meson.build || { echo "meson.build missing! Wrong tarball?"; exit 1; }
 
-      - name: Meson setup && Compile
+      - name: Meson setup && Compile && Install to staging
         working-directory: ./bind9-source
         run: |
           set -e
@@ -79,33 +79,34 @@ jobs:
           echo "Meson compile..."
           meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
-          echo "Build done. Full ls of build directory for debug:"
-          ls -R ../build || true
+          echo "Meson install to staging dir..."
+          mkdir -p ../installed
+          meson install -C ../build --destdir=../installed 2>&1 | tee ../meson-install.log
 
-          echo "Looking for named binary in common locations:"
-          find ../build -name named 2>/dev/null || true
-          find ../build -name dig 2>/dev/null || true
-          find ../build -name rndc 2>/dev/null || true
+          echo "Staging install dir contents:"
+          ls -R ../installed || true
 
-      - name: Collect binaries
+      - name: Collect binaries from staging install
         run: |
           set -e
           mkdir -p artifacts
 
-          # 尝试常见路径复制（根据 find 结果调整）
-          cp -v build/bin/named/named               artifacts/named              2>/dev/null || true
-          cp -v build/bin/dig/dig                   artifacts/dig                2>/dev/null || true
-          cp -v build/bin/dig/host                  artifacts/host               2>/dev/null || true
-          cp -v build/bin/dig/delv                  artifacts/delv               2>/dev/null || true
-          cp -v build/bin/check/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
-          cp -v build/bin/check/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
-          cp -v build/bin/rndc/rndc                 artifacts/rndc               2>/dev/null || true
+          # BIND 默认安装到 prefix/bin/ 下
+          STAGING_BIN="../installed/usr/local/bind9/bin"
 
-          # 如果上面没找到，尝试更宽松的 find & cp
-          find build -name named -type f -exec cp {} artifacts/named \; 2>/dev/null || true
-          find build -name dig -type f -exec cp {} artifacts/dig \; 2>/dev/null || true
-          find build -name rndc -type f -exec cp {} artifacts/rndc \; 2>/dev/null || true
-          # ... 可以加其他
+          cp -v ${STAGING_BIN}/named               artifacts/named              2>/dev/null || true
+          cp -v ${STAGING_BIN}/dig                 artifacts/dig                2>/dev/null || true
+          cp -v ${STAGING_BIN}/host                artifacts/host               2>/dev/null || true
+          cp -v ${STAGING_BIN}/delv                artifacts/delv               2>/dev/null || true
+          cp -v ${STAGING_BIN}/named-checkconf     artifacts/named-checkconf    2>/dev/null || true
+          cp -v ${STAGING_BIN}/named-checkzone     artifacts/named-checkzone    2>/dev/null || true
+          cp -v ${STAGING_BIN}/rndc                artifacts/rndc               2>/dev/null || true
+
+          # 调试：如果上面没找到，列出 staging 所有可执行文件
+          if [[ -z "$(ls artifacts/ 2>/dev/null)" ]]; then
+            echo "No files copied, listing all executables in staging:"
+            find ../installed -type f -executable -print || true
+          fi
 
           ls -lh artifacts/ || true
 
