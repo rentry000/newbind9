@@ -38,20 +38,7 @@ jobs:
           echo "File     : ${SRC_FILE}"
           echo "Full URL : ${URL}"
 
-          wget -q --tries=3 --timeout=30 -O "\( {SRC_FILE}" " \){URL}"
-
-          if [ \( ? -ne 0 ] || [ ! -s " \){SRC_FILE}" ]; then
-            echo "ERROR: Download failed or file is empty!"
-            echo "Current directory contents:"
-            ls -lh . || true
-            echo "Trying to list remote directory:"
-            curl -s --fail "https://ftp.isc.org/isc/bind9/${VERSION}/" || echo "curl directory listing failed"
-            exit 1
-          fi
-
-          echo "Download OK. File info:"
-          ls -lh "${SRC_FILE}"
-          file "${SRC_FILE}" || true
+          wget -c https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz
 
       - name: Extract source
         run: |
