@@ -325,20 +325,18 @@ jobs:
           cpp_link_args = ['--target=aarch64-linux-android34', '-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib', '-L/opt/json-c-android/lib', '-L/opt/libxml2-android/lib', '-L/opt/libcap-android/lib', '-L/opt/libidn2-android/lib', '-L/opt/libmaxminddb-android/lib']
           EOL
       
-          # 👇 关键修复：不注释 subdir('tests')，而是让 tests/meson.build 不编译 netmgr_wrap.c
           echo "=== Patching tests/meson.build to skip netmgr_wrap.c ==="
           if [ -f tests/meson.build ]; then
-            # 使用 & 引用整行，避免 \1 转义问题
-            sed -i 's/^[[:space:]]*[^#].*netmgr_wrap\.c.*/# PATCHED OUT: &/' tests/meson.build
-            echo "✅ Patch applied."
+            # ✅ 安全写法：使用 &，双引号，正确转义 \.
+            sed -i "s/^[[:space:]]*[^#].*netmgr_wrap\\.c.*/# PATCHED OUT: &/" tests/meson.build
+            echo "✅ Patch applied successfully."
           else
             echo "⚠️ Warning: tests/meson.build not found!"
           fi
-
       
           rm -rf ../build
       
-          echo "=== Meson setup (tests partially disabled) ==="
+          echo "=== Meson setup ==="
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
             --prefix=/data/adb/bind9 \
@@ -347,7 +345,7 @@ jobs:
             2>&1 | tee ../meson-setup.log
       
           if [ ! -f ../build/build.ninja ]; then
-            echo "❌ Meson setup 失败！"
+            echo "❌ Meson setup failed!"
             cat ../build/meson-logs/meson-log.txt || true
             exit 1
           fi
@@ -355,8 +353,8 @@ jobs:
           echo "=== Meson compile ==="
           meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
       
-          echo "=== 检查生成的可执行文件 ==="
-          find ../build -type f -executable $ -name named -o -name dig -o -name rndc $ 2>/dev/null || echo "未找到可执行文件"
+          echo "=== Check executables ==="
+          find ../build -type f -executable $ -name named -o -name dig -o -name rndc $ 2>/dev/null || echo "No executables found"
       
                           
       - name: Commit binaries
