@@ -200,37 +200,36 @@ jobs:
           ls -l /opt/libcap-android/lib/libcap.a
           ls -l /opt/libcap-android/include/sys/capability.h || true
           find /opt/libcap-android -name "*.a" | head -5
-      - name: Cross-compile libidn2 for Android arm64 (static)
+      - name: Cross-compile libidn2 for Android arm64 (static) - use release tarball
         run: |
-         git clone https://gitlab.com/libidn/libidn2.git
-         cd libidn2
+         # 下载官方 release（当前最新是 2.3.8，建议去 https://ftp.gnu.org/gnu/libidn/ 确认最新版）
+         wget https://ftp.gnu.org/gnu/libidn/libidn2-2.3.8.tar.gz
+         tar -xzf libidn2-2.3.8.tar.gz
+         cd libidn2-2.3.8
 
-         # 现在 bootstrap 就能过了
-         ./bootstrap
-
-         # 推荐额外设置 sysroot 和 target（避免常见链接问题）
+         # 设置 NDK PATH（假设你的 NDK 在 /opt/ndk）
          export PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 
          ./configure \
           --host=aarch64-linux-android \
           --prefix=/opt/libidn2-android \
+          --disable-shared \
+          --enable-static \
+          --with-pic \
           CC=aarch64-linux-android34-clang \
           CXX=aarch64-linux-android34-clang++ \
           AR=llvm-ar \
           RANLIB=llvm-ranlib \
           STRIP=llvm-strip \
-          --disable-shared \
-          --enable-static \
-          --with-pic \
-          CFLAGS="--target=aarch64-linux-android34 -fPIC" \
-          LDFLAGS="--target=aarch64-linux-android34"
+          CFLAGS="--target=aarch64-linux-android34 -fPIC -O2" \
+          LDFLAGS="--target=aarch64-linux-android34" \
+           --disable-tests --disable-doc  # 加速 + 避免文档依赖
 
           make -j$(nproc)
           make install
 
           # 验证
-          ls -l /opt/libidn2-android/lib/libidn2.a || echo "libidn2.a not found!"
-
+          ls -lh /opt/libidn2-android/lib/libidn2.a || echo "libidn2.a missing!"
       - name: Cross-compile libmaxminddb for Android arm64 (static)
         run: |
           git clone https://github.com/maxmind/libmaxminddb.git
