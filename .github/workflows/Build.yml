@@ -325,13 +325,21 @@ jobs:
           cpp_link_args = ['--target=aarch64-linux-android34', '-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib', '-L/opt/json-c-android/lib', '-L/opt/libxml2-android/lib', '-L/opt/libcap-android/lib', '-L/opt/libidn2-android/lib', '-L/opt/libmaxminddb-android/lib']
           EOL
       
-          # 👇 关键修复：临时注释掉 tests 目录的包含，避免编译 netmgr_wrap.c
-          echo "=== Patching meson.build to skip 'tests' directory ==="
-          sed -i '/^\s*subdir\s*(\s*['\''"]tests['\''"]\s*)/ s/^/# SKIP TESTS: /' meson.build
+          # 👇 关键修复：不注释 subdir('tests')，而是让 tests/meson.build 不编译 netmgr_wrap.c
+          echo "=== Patching tests/meson.build to skip problematic source files ==="
+          if [ -f tests/meson.build ]; then
+            # 方法1: 注释掉包含 netmgr_wrap.c 的 target
+            sed -i 's/^$.*netmgr_wrap\.c.*$$/# PATCHED OUT: \1/' tests/meson.build
+            
+            # 方法2: 或者更彻底地，清空所有可执行文件和库的构建（只保留 dependency 声明）
+            # 但保守起见，我们只注释冲突文件
+          else
+            echo "⚠️ Warning: tests/meson.build not found!"
+          fi
       
           rm -rf ../build
       
-          echo "=== Meson setup (tests disabled via source patch) ==="
+          echo "=== Meson setup (tests partially disabled) ==="
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
             --prefix=/data/adb/bind9 \
@@ -350,7 +358,7 @@ jobs:
       
           echo "=== 检查生成的可执行文件 ==="
           find ../build -type f -executable $ -name named -o -name dig -o -name rndc $ 2>/dev/null || echo "未找到可执行文件"
-
+      
                           
       - name: Commit binaries
         run: |
