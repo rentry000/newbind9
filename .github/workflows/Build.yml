@@ -165,28 +165,40 @@ jobs:
           cd libcap
           git checkout libcap-2.69
 
-          # 禁用共享库构建和 loader.txt 生成（核心修复）
+          # === 彻底清理所有 shared 相关规则（避免 cap_magic.o / libcap.so）===
+          sed -i '/libcap\.so/d' libcap/Makefile
+          sed -i '/libpsx\.so/d' libcap/Makefile
           sed -i '/capso\.o/d' libcap/Makefile
+          sed -i '/cap_magic\.o/d' libcap/Makefile
           sed -i '/loader\.txt/d' libcap/Makefile
-          sed -i '/cap.so/d' libcap/Makefile            # 如果有的话
-          sed -i 's/-shared/-static/g' libcap/Makefile   # 强制静态（可选）
+          sed -i 's/ libcap\.so//g' libcap/Makefile
+          sed -i 's/ libpsx\.so//g' libcap/Makefile
 
-          # 加上 -fPIC（Android 静态库也推荐）
-          # 加上 -DANDROID 或其他宏如果需要
-
-          make CC=aarch64-linux-android34-clang \
+          # 关键变量：让 Makefile 完全跳过共享库构建
+          make -C libcap \
+          CC=aarch64-linux-android34-clang \
           AR=llvm-ar \
           RANLIB=llvm-ranlib \
           STRIP=llvm-strip \
           BUILD_CC=gcc \
           prefix=/opt/libcap-android \
           lib=lib \
-          CFLAGS="-fPIC -O2" \
-          -j$(nproc) all
+          SHARED=no \
+          CFLAGS="-fPIC -O2 -Dlinux -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64" \
+          -j$(nproc)
 
-          make install \
+          # 单独执行 install（只安装静态库）
+          make -C libcap \
           prefix=/opt/libcap-android \
-          lib=lib
+          lib=lib \
+          SHARED=no \
+          install
+
+          # 验证结果
+          echo "=== 安装结果 ==="
+          ls -l /opt/libcap-android/lib/libcap.a
+          ls -l /opt/libcap-android/include/sys/capability.h || true
+          find /opt/libcap-android -name "*.a" | head -5
       - name: Cross-compile libidn2 for Android arm64 (static)
         run: |
           git clone https://gitlab.com/libidn/libidn2.git
