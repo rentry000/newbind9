@@ -316,7 +316,7 @@ jobs:
           link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib', '-L/opt/json-c-android/lib', '-L/opt/libxml2-android/lib', '-L/opt/libcap-android/lib', '-L/opt/libidn2-android/lib', '-L/opt/libmaxminddb-android/lib']
           EOF
 
-      - name: Meson setup && Compile BIND
+      
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
