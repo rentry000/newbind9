@@ -102,11 +102,30 @@ jobs:
           make -j$(nproc)
           make install
 
+      - name: Cross-compile libnghttp2 for Android arm64 (static)
+        run: |
+          git clone https://github.com/nghttp2/nghttp2.git
+          cd nghttp2
+          git checkout v1.62.1
+          autoreconf -fi
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=/opt/libnghttp2-android \
+            CC=aarch64-linux-android34-clang \
+            CXX=aarch64-linux-android34-clang++ \
+            AR=llvm-ar \
+            RANLIB=llvm-ranlib \
+            STRIP=llvm-strip \
+            --disable-shared --enable-static --with-pic \
+            --without-libxml2 --without-libexpat --without-libcares --without-jemalloc
+          make -j$(nproc)
+          make install
+
       - name: Download BIND 9.21.17 source
         run: |
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
+          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
           wget -c "$URL"
           if [ ! -s "$SRC_FILE" ]; then echo "Download failed"; exit 1; fi
           tar xf "$SRC_FILE"
@@ -130,15 +149,15 @@ jobs:
 
           [properties]
           sys_root = '/opt/ndk/sysroot'
-          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig'
-          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include', '-I/opt/liburcu-android/include']
-          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib']
+          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig'
+          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include', '-I/opt/liburcu-android/include', '-I/opt/libnghttp2-android/include']
+          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib']
           EOF
 
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
-          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig
+          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig
         run: |
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
