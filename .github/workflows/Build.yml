@@ -401,7 +401,7 @@ jobs:
             --cross-file ../cross-arm64.ini \
             --prefix=/data/adb/bind9 \
             -Ddefault_library=static \
-            -Denable-fuzz-targets=false \ 
+            -Denable-fuzz-targets=false \
             -Denable-tests=false \
             --buildtype=release \
             2>&1 | tee ../meson-setup.log
