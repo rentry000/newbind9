@@ -53,15 +53,12 @@ jobs:
           export RANLIB=llvm-ranlib
           export STRIP=llvm-strip
 
-          # 先删除 fuzz 目录，防止生成有问题的目标
           rm -rf fuzz
-
           ./Configure android-arm64 no-shared no-asm no-tests -static \
             --prefix=/opt/openssl-android \
             --openssldir=/opt/openssl-android/ssl \
             -D__ANDROID_API__=34
 
-          # 关键修复：手动创建空 fuzz/build.info 文件，欺骗 make
           mkdir -p fuzz
           touch fuzz/build.info
 
@@ -79,6 +76,23 @@ jobs:
           ./configure \
             --host=aarch64-linux-android \
             --prefix=/opt/libuv-android \
+            CC=aarch64-linux-android34-clang \
+            CXX=aarch64-linux-android34-clang++ \
+            AR=llvm-ar \
+            RANLIB=llvm-ranlib \
+            STRIP=llvm-strip \
+            --disable-shared --enable-static --with-pic
+          make -j$(nproc)
+          make install
+
+      - name: Cross-compile liburcu for Android arm64 (static)
+        run: |
+          git clone https://git.liburcu.org/userspace-rcu.git
+          cd userspace-rcu
+          ./bootstrap
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=/opt/liburcu-android \
             CC=aarch64-linux-android34-clang \
             CXX=aarch64-linux-android34-clang++ \
             AR=llvm-ar \
@@ -116,15 +130,15 @@ jobs:
 
           [properties]
           sys_root = '/opt/ndk/sysroot'
-          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig'
-          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include']
-          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib']
+          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig'
+          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include', '-I/opt/liburcu-android/include']
+          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib']
           EOF
 
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
-          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig
+          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig
         run: |
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
