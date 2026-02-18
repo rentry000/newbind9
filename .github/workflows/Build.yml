@@ -290,7 +290,6 @@ jobs:
           file /opt/libmaxminddb-android/lib/libmaxminddb.a  # 应显示 ELF 64-bit LSB archive, ARM aarch64
      
       
-
       - name: Download BIND 9.21.17 source
         run: |
           VERSION="9.21.17"
@@ -342,7 +341,20 @@ jobs:
           echo "=== zlib installed at /opt/zlib-android ==="
           ls -l /opt/zlib-android/lib/
           pkg-config --libs zlib
-
+          
+      - name: Disable all tests to avoid linking libuv/OpenSSL in shared library
+        working-directory: bind9-source
+        run: |
+          echo "=== Disabling tests completely ==="
+          if [ -f tests/meson.build ]; then
+            # 替换为最小 stub，避免 'Unknown variable libtest_dep' 错误
+            cat > tests/meson.build <<'EOF'
+            libtest_dep = declare_dependency()
+            EOF
+            echo "✅ tests/meson.build replaced with empty stub."
+          else
+            echo "⚠️ Warning: tests/meson.build not found!"
+          fi
       
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
