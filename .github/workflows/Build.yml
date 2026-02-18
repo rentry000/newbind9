@@ -347,14 +347,12 @@ jobs:
         run: |
           echo "=== Disabling tests completely ==="
           if [ -f tests/meson.build ]; then
-            # 替换为最小 stub，避免 'Unknown variable libtest_dep' 错误
-            cat > tests/meson.build <<'EOF'
-            libtest_dep = declare_dependency()
-            EOF
+            echo "libtest_dep = declare_dependency()" > tests/meson.build
             echo "✅ tests/meson.build replaced with empty stub."
           else
             echo "⚠️ Warning: tests/meson.build not found!"
           fi
+
       
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
