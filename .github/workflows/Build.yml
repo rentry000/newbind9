@@ -92,7 +92,7 @@ jobs:
         run: |
           VERSION="9.21.17"
           SRC_FILE="bind-${VERSION}.tar.xz"
-          URL="https://ftp.isc.org/isc/bind9/\( {VERSION}/ \){SRC_FILE}"
+          URL="https://ftp.isc.org/isc/bind9/9.21.17/bind-9.21.17.tar.xz"
           wget -c "$URL"
           if [ ! -s "$SRC_FILE" ]; then echo "Download failed"; exit 1; fi
           tar xf "$SRC_FILE"
