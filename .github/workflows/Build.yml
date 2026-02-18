@@ -294,7 +294,7 @@ jobs:
           mv "bind-${VERSION}" bind9-source
 
       
-          - name: Meson setup && Compile BIND
+      - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
           PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig
