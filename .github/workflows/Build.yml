@@ -321,7 +321,33 @@ jobs:
         env:
           PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig
         run: |
-          meson setup ../build \
+          # === 1. 生成最优化的 cross-arm64.ini（覆盖你旧的）===
+          cat > ../cross-arm64.ini << 'EOF'
+          [binaries]
+           c = 'aarch64-linux-android34-clang'
+           cpp = 'aarch64-linux-android34-clang++'
+           ar = 'llvm-ar'
+           ranlib = 'llvm-ranlib'
+           strip = 'llvm-strip'
+           pkg-config = 'pkg-config'
+
+           [host_machine]
+           system = 'android'          # 关键！告诉 Meson 是 Android 而不是 Linux
+           cpu_family = 'aarch64'
+           cpu = 'aarch64'
+           endian = 'little'
+
+           [properties]
+            needs_exe_wrapper = true
+            sys_root = '/opt/ndk/sysroot'   # 如果你的 NDK 路径不同，请修改
+            c_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
+            cpp_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
+            c_link_args = ['--target=aarch64-linux-android34']
+            cpp_link_args = ['--target=aarch64-linux-android34']
+            EOF
+
+            # === 2. Meson setup（强制启用所有可执行文件）===
+            meson setup ../build \
             --cross-file ../cross-arm64.ini \
             --prefix=/data/adb/bind9 \
             -Ddefault_library=static \
@@ -332,10 +358,23 @@ jobs:
             -Didn=enabled \
             -Ddnstap=auto \
             -Db_staticpic=true \
-            --buildtype=release 2>&1 | tee ../meson-setup.log
+            --buildtype=release \
+            -Dnamed=enabled \           # 强制构建 named
+            -Dtools=enabled \           # 强制构建 dig/host/delv/rndc 等工具
+            -Dcheck=enabled \           # 强制构建 named-checkconf / named-checkzone
+             2>&1 | tee ../meson-setup.log
 
-          meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
+             # === 3. Compile + 完整调试信息 ===
+             meson compile -C ../build -v 2>&1 | tee ../meson-compile.log
 
+             echo "=== DEBUG: Meson 检测到的可执行目标 ==="
+             meson introspect --targets ../build | grep -E "(named|dig|host|delv|rndc|checkconf|checkzone)" || echo "【警告】没有找到任何程序目标！"
+
+             echo "=== DEBUG: build 目录下所有可执行文件 ==="
+             find ../build -type f -executable -ls || true
+
+             echo "=== DEBUG: 最终二进制列表 ==="
+             ls -lh ../build/*/named ../build/*/dig ../build/*/host ../build/*/delv ../build/*/rndc ../build/*/named-checkconf ../build/*/named-checkzone 2>/dev/null || echo "仍未找到二进制（请贴日志）"
       - name: Collect binaries
         run: |
           mkdir -p artifacts
