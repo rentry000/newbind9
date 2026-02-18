@@ -19,7 +19,7 @@ jobs:
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
             build-essential pkg-config meson ninja-build wget unzip git autoconf libtool bison flex \
-            python3-ply python3-jinja2 python3-setuptools ca-certificates
+            python3-ply python3-jinja2 python3-setuptools ca-certificates gperf gengetopt
 
       - name: Download Android NDK r26d
         run: |
@@ -201,20 +201,34 @@ jobs:
           find /opt/libcap-android -name "*.a" | head -5
       - name: Cross-compile libidn2 for Android arm64 (static)
         run: |
-          git clone https://gitlab.com/libidn/libidn2.git
-          cd libidn2
-          ./bootstrap
-          ./configure \
-            --host=aarch64-linux-android \
-            --prefix=/opt/libidn2-android \
-            CC=aarch64-linux-android34-clang \
-            CXX=aarch64-linux-android34-clang++ \
-            AR=llvm-ar \
-            RANLIB=llvm-ranlib \
-            STRIP=llvm-strip \
-            --disable-shared --enable-static --with-pic
+         git clone https://gitlab.com/libidn/libidn2.git
+         cd libidn2
+
+         # 现在 bootstrap 就能过了
+         ./bootstrap
+
+         # 推荐额外设置 sysroot 和 target（避免常见链接问题）
+         export PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+
+         ./configure \
+          --host=aarch64-linux-android \
+          --prefix=/opt/libidn2-android \
+          CC=aarch64-linux-android34-clang \
+          CXX=aarch64-linux-android34-clang++ \
+          AR=llvm-ar \
+          RANLIB=llvm-ranlib \
+          STRIP=llvm-strip \
+          --disable-shared \
+          --enable-static \
+          --with-pic \
+          CFLAGS="--target=aarch64-linux-android34 -fPIC" \
+          LDFLAGS="--target=aarch64-linux-android34"
+
           make -j$(nproc)
           make install
+
+          # 验证
+          ls -l /opt/libidn2-android/lib/libidn2.a || echo "libidn2.a not found!"
 
       - name: Cross-compile libmaxminddb for Android arm64 (static)
         run: |
