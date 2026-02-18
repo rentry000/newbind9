@@ -292,29 +292,6 @@ jobs:
           if [ ! -s "$SRC_FILE" ]; then echo "Download failed"; exit 1; fi
           tar xf "$SRC_FILE"
           mv "bind-${VERSION}" bind9-source
-      - name: Create Meson cross file
-        run: |
-          cat > cross-arm64.ini << 'EOF'
-          [binaries]
-          c = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang'
-          cpp = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++'
-          ar = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-          strip = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
-          pkgconfig = 'pkg-config'
-
-          [host_machine]
-          system = 'android'
-          cpu_family = 'aarch64'
-          cpu = 'armv8'
-          endian = 'little'
-
-          [properties]
-          sys_root = '/opt/ndk/sysroot'
-          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig'
-          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include', '-I/opt/liburcu-android/include', '-I/opt/libnghttp2-android/include', '-I/opt/json-c-android/include', '-I/opt/libxml2-android/include', '-I/opt/libcap-android/include', '-I/opt/libidn2-android/include', '-I/opt/libmaxminddb-android/include']
-          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib', '-L/opt/json-c-android/lib', '-L/opt/libxml2-android/lib', '-L/opt/libcap-android/lib', '-L/opt/libidn2-android/lib', '-L/opt/libmaxminddb-android/lib']
-          EOF
-
       
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
