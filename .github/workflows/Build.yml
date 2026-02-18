@@ -53,7 +53,8 @@ jobs:
           export RANLIB=llvm-ranlib
           export STRIP=llvm-strip
 
-          ./Configure android-arm64 no-shared no-asm -static \
+          # 关键修复：添加 no-fuzz no-tests 跳过导致链接冲突的 fuzz 测试
+          ./Configure android-arm64 no-shared no-asm no-fuzz no-tests -static \
             --prefix=/opt/openssl-android \
             --openssldir=/opt/openssl-android/ssl \
             -D__ANDROID_API__=34
