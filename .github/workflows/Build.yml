@@ -31,7 +31,7 @@ jobs:
           echo "ANDROID_NDK=/opt/ndk" >> $GITHUB_ENV
           echo "PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Create gcc symlink for OpenSSL (fix gcc check)
+      - name: Create gcc symlink for OpenSSL
         run: |
           mkdir -p /opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin
           ln -sf /opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang \
@@ -53,11 +53,13 @@ jobs:
           export RANLIB=llvm-ranlib
           export STRIP=llvm-strip
 
-          # 关键修复：添加 no-fuzz no-tests 跳过导致链接冲突的 fuzz 测试
-          ./Configure android-arm64 no-shared no-asm no-fuzz no-tests -static \
+          ./Configure android-arm64 no-shared no-asm no-tests -static \
             --prefix=/opt/openssl-android \
             --openssldir=/opt/openssl-android/ssl \
             -D__ANDROID_API__=34
+
+          # 彻底删除 fuzz 目录，避免 vdso linker 冲突（1.1.1w 不支持 no-fuzz 参数）
+          rm -rf fuzz
 
           make -j$(nproc)
           make install_sw install_ssldirs
