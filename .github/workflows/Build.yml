@@ -19,7 +19,8 @@ jobs:
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
             build-essential pkg-config meson ninja-build wget unzip git autoconf libtool bison flex \
-            python3-ply python3-jinja2 python3-setuptools ca-certificates gperf gengetopt
+            python3-ply python3-jinja2 python3-setuptools ca-certificates gperf gengetopt autoconf automake autopoint libtool gettext gperf gengetopt pkg-config
+
 
       - name: Download Android NDK r26d
         run: |
