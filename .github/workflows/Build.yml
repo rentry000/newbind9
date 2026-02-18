@@ -333,7 +333,7 @@ jobs:
             --prefix=/data/adb/bind9 \
             -Ddefault_library=static \
             --buildtype=release \
-            -Dbuild_tests=false \
+            -Dunit_tests=false \
             2>&1 | tee ../meson-setup.log
       
           if [ ! -f ../build/build.ninja ]; then
