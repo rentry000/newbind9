@@ -375,22 +375,22 @@ jobs:
 
           echo "=== DEBUG: Found executables ==="
           find ../build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) 2>/dev/null || echo "No executables found"
-         - name: Collect binaries
-  run: |
-    mkdir -p artifacts
+      - name: Collect binaries
+        run: |
+         mkdir -p artifacts
 
-    echo "=== Collecting binaries from build ==="
-    # 同时搜索两种可能路径（容错）
-    find build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \; 2>/dev/null || true
-    find ../build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \; 2>/dev/null || true
+         echo "=== Collecting binaries from build ==="
+         # 同时搜索两种可能路径（容错）
+         find build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \; 2>/dev/null || true
+         find ../build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) -exec cp {} artifacts/ \; 2>/dev/null || true
 
-    echo "=== Collected artifacts ==="
-    ls -lh artifacts/ || echo "Still no binaries"
+         echo "=== Collected artifacts ==="
+         ls -lh artifacts/ || echo "Still no binaries"
 
-    if [ -z "$(ls -A artifacts/ 2>/dev/null)" ]; then
-      echo "❌ No binaries found. Check meson-setup.log and meson-compile.log above"
-      exit 1
-    fi
+         if [ -z "$(ls -A artifacts/ 2>/dev/null)" ]; then
+          echo "❌ No binaries found. Check meson-setup.log and meson-compile.log above"
+          exit 1
+         fi
       - name: Commit binaries
         run: |
           if ls artifacts/* >/dev/null 2>&1; then
