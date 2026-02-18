@@ -362,22 +362,26 @@ jobs:
           set -e
           set -o pipefail
 
-          echo "=== 强力 patch 主 meson.build（彻底跳过 fuzz）==="
-          # 多重安全 patch，覆盖所有可能的写法
-          sed -i '/subdir.*fuzz/d' meson.build || true
-          sed -i '/fuzz/d' meson.build || true
-          sed -i 's|subdir("fuzz")|# subdir("fuzz") # patched for Android|' meson.build || true
-          sed -i "s|subdir('fuzz')|# subdir('fuzz') # patched for Android|" meson.build || true
-          sed -i '/fuzz\/meson.build/d' meson.build || true
+          echo "=== 重新解压 BIND9 源码（恢复干净 meson.build）==="
+          cd ..
+          rm -rf bind9-source
+          tar xf bind-9.21.17.tar.xz
+          mv bind-9.21.17 bind9-source
+          cd bind9-source
 
-          echo "=== Patch 后检查（确认 fuzz 已注释）==="
-          grep -n "fuzz" meson.build || echo "✅ fuzz 已完全注释/删除"
-
-          echo "=== 删除 fuzz 目录（安全）==="
-          rm -rf fuzz
-
-          echo "=== 生成 cross-arm64.ini（最终版 + -landroid）==="
-          cat > ../cross-arm64.ini <<'EOL'
+          echo "=== 精确 patch meson.build（只注释 fuzz 子目录，不破坏 if/endif）==="
+          python3 -c '
+          import re
+          with open("meson.build", "r", encoding="utf-8") as f:
+              content = f.read()
+          content = re.sub(r"subdir\([\"\']fuzz[\"\']\)", "# subdir(\"fuzz\")  # patched for Android cross", content, flags=re.MULTILINE)
+          with open("meson.build", "w", encoding="utf-8") as f:
+              f.write(content)
+          print("✅ fuzz 子目录已安全注释")
+          '
+          
+                    echo "=== 生成 cross-arm64.ini（最终版）==="
+                    cat > ../cross-arm64.ini <<'EOL'
           [binaries]
           c = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang'
           cpp = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++'
