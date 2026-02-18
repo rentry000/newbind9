@@ -159,19 +159,24 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Cross-compile libcap for Android arm64 (static)
+      - name: Cross-compile libcap for Android arm64 (static) - AOSP fork
         run: |
-          git clone https://git.kernel.org/pub/scm/libs/libcap/libcap.git
-          cd libcap
-          git checkout libcap-2.69
-          make CC=aarch64-linux-android34-clang \
-               AR=llvm-ar \
-               RANLIB=llvm-ranlib \
-               STRIP=llvm-strip \
-               BUILD_CC=gcc \
-               prefix=/opt/libcap-android \
-               lib=lib \
-               install
+           git clone https://android.googlesource.com/platform/external/libcap
+           cd libcap
+
+           #   AOSP 版本通常直接支持 make + CROSS_COMPILE
+           # 但为了 static + arm64，建议：
+           make CC=aarch64-linux-android34-clang \
+           AR=llvm-ar \
+           RANLIB=llvm-ranlib \
+           STRIP=llvm-strip \
+           BUILD_CC=gcc \
+           prefix=/opt/libcap-android \
+           lib=lib \
+           CFLAGS="-fPIC -O2 -DANDROID" \
+           -j$(nproc)
+
+           make install prefix=/opt/libcap-android lib=lib
 
       - name: Cross-compile libidn2 for Android arm64 (static)
         run: |
