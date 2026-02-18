@@ -346,7 +346,7 @@ jobs:
           pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig'
           c_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
           cpp_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
-- name: Meson setup && Compile BIND
+      - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
           PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig
@@ -356,29 +356,29 @@ jobs:
 
           echo "=== 生成 cross-arm64.ini（最终版）==="
           cat > ../cross-arm64.ini <<'EOL'
-[binaries]
-c = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang'
-cpp = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++'
-ar = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-ranlib = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib'
-strip = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
-pkg-config = 'pkg-config'
+          [binaries]
+          c = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang'
+          cpp = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++'
+          ar = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+          ranlib = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib'
+          strip = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+          pkg-config = 'pkg-config'
 
-[host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
+          [host_machine]
+          system = 'android'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
 
-[properties]
-needs_exe_wrapper = true
-sys_root = '/opt/ndk/sysroot'
-pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig'
-c_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
-cpp_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
-c_link_args = ['--target=aarch64-linux-android34']
-cpp_link_args = ['--target=aarch64-linux-android34']
-EOL
+          [properties]
+          needs_exe_wrapper = true
+          sys_root = '/opt/ndk/sysroot'
+          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig'
+          c_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
+          cpp_args = ['--target=aarch64-linux-android34', '-fPIC', '-O2']
+          c_link_args = ['--target=aarch64-linux-android34']
+          cpp_link_args = ['--target=aarch64-linux-android34']
+          EOL
 
           echo "=== Meson setup（已移除无效选项）==="
           meson setup ../build \
