@@ -362,7 +362,21 @@ jobs:
           set -e
           set -o pipefail
 
-          echo "=== 生成 cross-arm64.ini（添加 -landroid 修复 uv__random_getentropy）==="
+          echo "=== 强力 patch 主 meson.build（彻底跳过 fuzz）==="
+          # 多重安全 patch，覆盖所有可能的写法
+          sed -i '/subdir.*fuzz/d' meson.build || true
+          sed -i '/fuzz/d' meson.build || true
+          sed -i 's|subdir("fuzz")|# subdir("fuzz") # patched for Android|' meson.build || true
+          sed -i "s|subdir('fuzz')|# subdir('fuzz') # patched for Android|" meson.build || true
+          sed -i '/fuzz\/meson.build/d' meson.build || true
+
+          echo "=== Patch 后检查（确认 fuzz 已注释）==="
+          grep -n "fuzz" meson.build || echo "✅ fuzz 已完全注释/删除"
+
+          echo "=== 删除 fuzz 目录（安全）==="
+          rm -rf fuzz
+
+          echo "=== 生成 cross-arm64.ini（最终版 + -landroid）==="
           cat > ../cross-arm64.ini <<'EOL'
           [binaries]
           c = '/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang'
