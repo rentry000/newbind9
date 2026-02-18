@@ -289,13 +289,7 @@ jobs:
           ls -lh /opt/libmaxminddb-android/lib/libmaxminddb.a || { echo "libmaxminddb.a NOT generated!"; exit 1; }
           file /opt/libmaxminddb-android/lib/libmaxminddb.a  # 应显示 ELF 64-bit LSB archive, ARM aarch64
      
-      - name: Patch tests to avoid all test-related linking
-        working-directory: bind9-source
-        run: |
-          if [ -f tests/meson.build ]; then
-            echo "libtest_dep = declare_dependency()" > tests/meson.build
-            echo "✅ Disabled tests completely."
-          fi
+      
 
       - name: Download BIND 9.21.17 source
         run: |
