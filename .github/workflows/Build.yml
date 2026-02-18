@@ -232,20 +232,36 @@ jobs:
           ls -lh /opt/libidn2-android/lib/libidn2.a || echo "libidn2.a missing!"
       - name: Cross-compile libmaxminddb for Android arm64 (static)
         run: |
-          git clone https://github.com/maxmind/libmaxminddb.git
-          cd libmaxminddb
-          ./bootstrap
+          # 用官方 release tarball（当前最新 1.12.x 系列，2025-2026 年稳定版；建议查 https://github.com/maxmind/libmaxminddb/releases 确认最新）
+          wget https://github.com/maxmind/libmaxminddb/releases/download/1.12.2/libmaxminddb-1.12.2.tar.gz
+          tar -xzf libmaxminddb-1.12.2.tar.gz
+          cd libmaxminddb-1.12.2
+
+          # 设置 NDK PATH（假设你的 NDK 在 /opt/ndk）
+          export PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+
           ./configure \
-            --host=aarch64-linux-android \
-            --prefix=/opt/libmaxminddb-android \
-            CC=aarch64-linux-android34-clang \
-            CXX=aarch64-linux-android34-clang++ \
-            AR=llvm-ar \
-            RANLIB=llvm-ranlib \
-            STRIP=llvm-strip \
-            --disable-shared --enable-static --with-pic
-          make -j$(nproc)
-          make install
+           --host=aarch64-linux-android \
+           --prefix=/opt/libmaxminddb-android \
+           --disable-shared \
+           --enable-static \
+           --with-pic \
+           --disable-tests \               # 关键：禁用测试，避免 libtap 依赖
+           CC=aarch64-linux-android34-clang \
+           CXX=aarch64-linux-android34-clang++ \
+           AR=llvm-ar \
+           RANLIB=llvm-ranlib \
+           STRIP=llvm-strip \
+           CFLAGS="--target=aarch64-linux-android34 -fPIC -O2" \
+           LDFLAGS="--target=aarch64-linux-android34"
+
+           make -j$(nproc)
+           make install
+
+           # 验证静态库生成
+           ls -lh /opt/libmaxminddb-android/lib/libmaxminddb.a || echo "libmaxminddb.a missing!"
+           echo "Installed headers and libs:"
+           find /opt/libmaxminddb-android -name "*.h" -o -name "*.a" | head -10
 
       - name: Download BIND 9.21.17 source
         run: |
