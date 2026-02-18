@@ -293,11 +293,53 @@ jobs:
           tar xf "$SRC_FILE"
           mv "bind-${VERSION}" bind9-source
 
+      - name: Cross-compile zlib for Android arm64 (static)
+        run: |
+          set -e
+          set -o pipefail
+      
+          echo "=== Cloning and building zlib for Android ==="
+          git clone https://github.com/madler/zlib.git
+          cd zlib
+      
+          # 设置 Android NDK 编译器
+          export CC=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang
+          export CFLAGS="--target=aarch64-linux-android34 -fPIC -O2"
+      
+          # 配置（静态库）
+          ./configure \
+            --static \
+            --prefix=/opt/zlib-android
+      
+          # 编译并安装
+          make -j$(nproc)
+          sudo make install
+      
+          # 创建 pkg-config 文件
+          sudo mkdir -p /opt/zlib-android/lib/pkgconfig
+          cat <<EOF | sudo tee /opt/zlib-android/lib/pkgconfig/zlib.pc
+          prefix=/opt/zlib-android
+          exec_prefix=\${prefix}
+          libdir=\${exec_prefix}/lib
+          includedir=\${prefix}/include
+      
+          Name: zlib
+          Description: zlib compression library
+          Version: 1.3
+          Libs: -L\${libdir} -lz
+          Cflags: -I\${includedir}
+          EOF
+      
+          # 验证
+          echo "=== zlib installed at /opt/zlib-android ==="
+          ls -l /opt/zlib-android/lib/
+          pkg-config --libs zlib
+
       
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
-          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig
+          PKG_CONFIG_PATH: /opt/zlib-android/lib/pkgconfig:/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig
         run: |
           set -e
           set -o pipefail
