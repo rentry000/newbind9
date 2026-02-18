@@ -63,7 +63,9 @@ jobs:
           mkdir -p fuzz
           touch fuzz/build.info
 
-          make -j$(nproc)
+          # make -j$(nproc)
+          # 关键：确保 CFLAGS 包含 -fPIC（android-arm64 通常已包含，但显式加更安全）
+          make -j$(nproc) CFLAGS="-fPIC -O2"
           make install_sw install_ssldirs
 
       - name: Cross-compile libuv for Android arm64 (static)
