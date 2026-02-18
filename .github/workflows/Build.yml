@@ -53,13 +53,17 @@ jobs:
           export RANLIB=llvm-ranlib
           export STRIP=llvm-strip
 
+          # 先删除 fuzz 目录，防止生成有问题的目标
+          rm -rf fuzz
+
           ./Configure android-arm64 no-shared no-asm no-tests -static \
             --prefix=/opt/openssl-android \
             --openssldir=/opt/openssl-android/ssl \
             -D__ANDROID_API__=34
 
-          # 彻底删除 fuzz 目录，避免 vdso linker 冲突（1.1.1w 不支持 no-fuzz 参数）
-          rm -rf fuzz
+          # 关键修复：手动创建空 fuzz/build.info 文件，欺骗 make
+          mkdir -p fuzz
+          touch fuzz/build.info
 
           make -j$(nproc)
           make install_sw install_ssldirs
