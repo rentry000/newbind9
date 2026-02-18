@@ -118,23 +118,49 @@ jobs:
             --without-libxml2 --without-libexpat --without-libcares --without-jemalloc
           make -j$(nproc)
           make install
-
+          
       - name: Cross-compile json-c for Android arm64 (static)
         run: |
           git clone https://github.com/json-c/json-c.git
           cd json-c
-          mkdir build && cd build
-          cmake .. \
-            -DCMAKE_C_COMPILER=aarch64-linux-android34-clang \
-            -DCMAKE_CXX_COMPILER=aarch64-linux-android34-clang++ \
-            -DCMAKE_AR=llvm-ar \
-            -DCMAKE_RANLIB=llvm-ranlib \
-            -DCMAKE_STRIP=llvm-strip \
-            -DCMAKE_INSTALL_PREFIX=/opt/json-c-android \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_SYSROOT=/opt/ndk/sysroot
-          make -j$(nproc)
-          make install
+    
+          # 1. 生成 configure 脚本（json-c 仓库通常需要先运行 autogen.sh）
+          ./autogen.sh
+
+          # 2. 设置环境变量（这是最可靠的方式）
+          export ANDROID_NDK_HOME=/opt/ndk
+          export PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+    
+          # 设置编译器和交叉编译前缀
+          # 注意：这里不需要加版本号（34），直接用 aarch64-linux-android-clang 即可
+          export CC=aarch64-linux-android-clang
+          export CXX=aarch64-linux-android-clang++
+          export AR=llvm-ar
+          export RANLIB=llvm-ranlib
+          export STRIP=llvm-strip
+    
+          # 关键：设置交叉编译前缀，让 configure 脚本能正确找到工具链
+          export CROSS_COMPILE=aarch64-linux-android-
+
+          # 3. 运行 configure
+          # --host 指定目标架构
+          # --enable-static --disable-shared 强制构建静态库
+          # --prefix 指定安装路径
+          # --with-sysroot 指定 NDK sysroot
+          ./configure \
+           --host=aarch64-linux-android \
+           --enable-static \
+           --disable-shared \
+           --prefix=/opt/json-c-android \
+           --with-sysroot=/opt/ndk/sysroot
+
+           # 4. 编译并安装
+           make -j$(nproc)
+           make install
+
+           # 调试：检查是否生成了静态库
+           ls -l /opt/json-c-android/lib/libjson-c.a || true
+
 
       - name: Cross-compile libxml2 for Android arm64 (static)
         run: |
