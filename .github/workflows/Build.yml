@@ -1,4 +1,4 @@
-name: Build BIND9 9.21.17 for Android arm64 (NDK static)
+name: Build BIND9 9.21.17 for Android arm64 (NDK static, full features)
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
         run: |
           sudo apt update -qq
           sudo apt install -yqq --no-install-recommends \
-            build-essential pkg-config meson ninja-build wget unzip git autoconf libtool \
+            build-essential pkg-config meson ninja-build wget unzip git autoconf libtool bison flex \
             python3-ply python3-jinja2 python3-setuptools ca-certificates
 
       - name: Download Android NDK r26d
@@ -64,8 +64,6 @@ jobs:
 
           make -j$(nproc)
           make install_sw install_ssldirs
-
-          ls -lh /opt/openssl-android/lib/libcrypto.a /opt/openssl-android/lib/libssl.a || true
 
       - name: Cross-compile libuv for Android arm64 (static)
         run: |
@@ -121,6 +119,89 @@ jobs:
           make -j$(nproc)
           make install
 
+      - name: Cross-compile json-c for Android arm64 (static)
+        run: |
+          git clone https://github.com/json-c/json-c.git
+          cd json-c
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_C_COMPILER=aarch64-linux-android34-clang \
+            -DCMAKE_CXX_COMPILER=aarch64-linux-android34-clang++ \
+            -DCMAKE_AR=llvm-ar \
+            -DCMAKE_RANLIB=llvm-ranlib \
+            -DCMAKE_STRIP=llvm-strip \
+            -DCMAKE_INSTALL_PREFIX=/opt/json-c-android \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_SYSROOT=/opt/ndk/sysroot
+          make -j$(nproc)
+          make install
+
+      - name: Cross-compile libxml2 for Android arm64 (static)
+        run: |
+          git clone https://gitlab.gnome.org/GNOME/libxml2.git
+          cd libxml2
+          git checkout v2.12.7
+          ./autogen.sh \
+            --host=aarch64-linux-android \
+            --prefix=/opt/libxml2-android \
+            CC=aarch64-linux-android34-clang \
+            CXX=aarch64-linux-android34-clang++ \
+            AR=llvm-ar \
+            RANLIB=llvm-ranlib \
+            STRIP=llvm-strip \
+            --disable-shared --enable-static --with-pic \
+            --without-python --without-lzma --without-zlib
+          make -j$(nproc)
+          make install
+
+      - name: Cross-compile libcap for Android arm64 (static)
+        run: |
+          git clone https://git.kernel.org/pub/scm/libs/libcap/libcap.git
+          cd libcap
+          git checkout libcap-2.69
+          make CC=aarch64-linux-android34-clang \
+               AR=llvm-ar \
+               RANLIB=llvm-ranlib \
+               STRIP=llvm-strip \
+               BUILD_CC=gcc \
+               prefix=/opt/libcap-android \
+               lib=lib \
+               install
+
+      - name: Cross-compile libidn2 for Android arm64 (static)
+        run: |
+          git clone https://gitlab.com/libidn/libidn2.git
+          cd libidn2
+          ./bootstrap
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=/opt/libidn2-android \
+            CC=aarch64-linux-android34-clang \
+            CXX=aarch64-linux-android34-clang++ \
+            AR=llvm-ar \
+            RANLIB=llvm-ranlib \
+            STRIP=llvm-strip \
+            --disable-shared --enable-static --with-pic
+          make -j$(nproc)
+          make install
+
+      - name: Cross-compile libmaxminddb for Android arm64 (static)
+        run: |
+          git clone https://github.com/maxmind/libmaxminddb.git
+          cd libmaxminddb
+          ./bootstrap
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=/opt/libmaxminddb-android \
+            CC=aarch64-linux-android34-clang \
+            CXX=aarch64-linux-android34-clang++ \
+            AR=llvm-ar \
+            RANLIB=llvm-ranlib \
+            STRIP=llvm-strip \
+            --disable-shared --enable-static --with-pic
+          make -j$(nproc)
+          make install
+
       - name: Download BIND 9.21.17 source
         run: |
           VERSION="9.21.17"
@@ -149,15 +230,15 @@ jobs:
 
           [properties]
           sys_root = '/opt/ndk/sysroot'
-          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig'
-          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include', '-I/opt/liburcu-android/include', '-I/opt/libnghttp2-android/include']
-          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib']
+          pkg_config_libdir = '/opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig'
+          c_args = ['-I/opt/openssl-android/include', '-I/opt/libuv-android/include', '-I/opt/liburcu-android/include', '-I/opt/libnghttp2-android/include', '-I/opt/json-c-android/include', '-I/opt/libxml2-android/include', '-I/opt/libcap-android/include', '-I/opt/libidn2-android/include', '-I/opt/libmaxminddb-android/include']
+          link_args = ['-L/opt/openssl-android/lib', '-L/opt/libuv-android/lib', '-L/opt/liburcu-android/lib', '-L/opt/libnghttp2-android/lib', '-L/opt/json-c-android/lib', '-L/opt/libxml2-android/lib', '-L/opt/libcap-android/lib', '-L/opt/libidn2-android/lib', '-L/opt/libmaxminddb-android/lib']
           EOF
 
       - name: Meson setup && Compile BIND
         working-directory: bind9-source
         env:
-          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig
+          PKG_CONFIG_PATH: /opt/openssl-android/lib/pkgconfig:/opt/libuv-android/lib/pkgconfig:/opt/liburcu-android/lib/pkgconfig:/opt/libnghttp2-android/lib/pkgconfig:/opt/json-c-android/lib/pkgconfig:/opt/libxml2-android/lib/pkgconfig:/opt/libcap-android/lib/pkgconfig:/opt/libidn2-android/lib/pkgconfig:/opt/libmaxminddb-android/lib/pkgconfig
         run: |
           meson setup ../build \
             --cross-file ../cross-arm64.ini \
@@ -187,7 +268,7 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update Android arm64 BIND 9.21.17 (NDK static)" || echo "No changes"
+            git commit -m "Update Android arm64 BIND 9.21.17 (NDK static, full deps)" || echo "No changes"
             git push || echo "Push skipped"
           else
             echo "No binaries found"
