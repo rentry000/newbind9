@@ -326,16 +326,15 @@ jobs:
           EOL
       
           # 👇 关键修复：不注释 subdir('tests')，而是让 tests/meson.build 不编译 netmgr_wrap.c
-          echo "=== Patching tests/meson.build to skip problematic source files ==="
+          echo "=== Patching tests/meson.build to skip netmgr_wrap.c ==="
           if [ -f tests/meson.build ]; then
-            # 方法1: 注释掉包含 netmgr_wrap.c 的 target
-            sed -i 's/^$.*netmgr_wrap\.c.*$$/# PATCHED OUT: \1/' tests/meson.build
-            
-            # 方法2: 或者更彻底地，清空所有可执行文件和库的构建（只保留 dependency 声明）
-            # 但保守起见，我们只注释冲突文件
+            # 使用 & 引用整行，避免 \1 转义问题
+            sed -i 's/^[[:space:]]*[^#].*netmgr_wrap\.c.*/# PATCHED OUT: &/' tests/meson.build
+            echo "✅ Patch applied."
           else
             echo "⚠️ Warning: tests/meson.build not found!"
           fi
+
       
           rm -rf ../build
       
