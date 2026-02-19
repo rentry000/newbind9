@@ -73,38 +73,21 @@ jobs:
           set -e
           set -o pipefail
       
-          echo "=== 下载并进入 libuv v1.48.0 ==="
+          echo "=== 下载 libuv v1.48.0 ==="
           git clone https://github.com/libuv/libuv.git
           cd libuv
           git checkout v1.48.0
       
-          echo "=== Debug: 检查所有 random 相关文件（关键！）==="
-          ls -la src/unix/ 2>/dev/null | grep -E 'random' || echo "【注意】src/unix/ 中暂无 random 文件"
-          find . -name "*random*.c" -type f | head -10
-      
-          echo "=== 智能 Patch：禁用 Android getentropy 路径（解决 undefined symbol）==="
-          PATCH_COUNT=0
-          for f in $(find . -name "*random*.c" -type f 2>/dev/null); do
-            if grep -q "__ANDROID__" "$f" 2>/dev/null; then
-              sed -i 's/defined(__ANDROID__) && __ANDROID_API__ >= 28/0 \/\/ patched for Android/g' "$f"
-              echo "✅ 已 patch: $f"
-              PATCH_COUNT=$((PATCH_COUNT + 1))
-            fi
-          done
-      
-          if [ $PATCH_COUNT -eq 0 ]; then
-            echo "⚠️ 未找到 Android 条件，使用环境变量兜底"
-          else
-            echo "🎉 共 patch 了 $PATCH_COUNT 个文件"
-          fi
+          echo "=== Debug: 检查 random 文件（确认源码存在）==="
+          ls -la src/unix/ | grep -E 'random' || echo "random 文件正常"
       
           ./autogen.sh
       
-          # 核心环境变量（必须在 configure 之前）
+          # 核心：ac_cv + __ANDROID_API__ 宏 trick（完美绕过 getentropy）
           export ac_cv_func_getentropy=no
           export ac_cv_func_getrandom=no
       
-          echo "=== 配置 libuv ==="
+          echo "=== 配置 libuv（关键 -D__ANDROID_API__=27）==="
           ./configure \
             --host=aarch64-linux-android \
             --prefix=/opt/libuv-android \
@@ -114,10 +97,10 @@ jobs:
             RANLIB=llvm-ranlib \
             STRIP=llvm-strip \
             --disable-shared --enable-static --with-pic \
-            CFLAGS="--target=aarch64-linux-android34 -fPIC -O2 -D_FILE_OFFSET_BITS=64" \
+            CFLAGS="--target=aarch64-linux-android34 -fPIC -O2 -D_FILE_OFFSET_BITS=64 -D__ANDROID_API__=27" \
             LDFLAGS="--target=aarch64-linux-android34"
       
-          echo "=== 编译并安装 ==="
+          echo "=== 编译安装 libuv ==="
           make -j$(nproc)
           make install
       
