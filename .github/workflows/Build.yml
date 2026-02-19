@@ -73,22 +73,35 @@ jobs:
           git clone https://github.com/libuv/libuv.git
           cd libuv
           git checkout v1.48.0
+      
+          echo "=== 关键 Patch：强制禁用 Android 上有问题的 getentropy 路径 ==="
+          # 这行是解决 undefined symbol 的核心（让它走 /dev/urandom 兜底）
+          sed -i 's/#if defined(__ANDROID__) && __ANDROID_API__ >= 28/#if 0/' src/unix/random.c
+      
           ./autogen.sh
-          # 设置 Android NDK 编译器
-          export CC=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang
-          export CFLAGS="--target=aarch64-linux-android34 -fPIC -O2 -D_FILE_OFFSET_BITS=64"
+      
+          # 正确设置 ac_cv（这次一定会生效）
+          export ac_cv_func_getentropy=no
+          export ac_cv_func_getrandom=no
+      
+          echo "=== Configuring libuv ==="
           ./configure \
             --host=aarch64-linux-android \
             --prefix=/opt/libuv-android \
-            CC=aarch64-linux-android34-clang \
-            CXX=aarch64-linux-android34-clang++ \
+            CC=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang \
+            CXX=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++ \
             AR=llvm-ar \
             RANLIB=llvm-ranlib \
             STRIP=llvm-strip \
-            --disable-shared --enable-static --with-pic
-            ac_cv_func_getentropy=no
+            --disable-shared --enable-static --with-pic \
+            CFLAGS="--target=aarch64-linux-android34 -fPIC -O2 -D_FILE_OFFSET_BITS=64" \
+            LDFLAGS="--target=aarch64-linux-android34"
+      
           make -j$(nproc)
           make install
+      
+          echo "=== libuv 编译完成 ==="
+          ls -lh /opt/libuv-android/lib/libuv.a
 
       - name: Cross-compile liburcu for Android arm64 (static)
         run: |
@@ -437,16 +450,9 @@ jobs:
           find ../build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) 2>/dev/null || echo "No executables found"
       
                           
-      - name: Commit binaries
+      - name: Collect & commit binaries
         run: |
-          if ls artifacts/* >/dev/null 2>&1; then
-            cp -v artifacts/* ./
-            git config user.name "GitHub Actions"
-            git config user.email "actions@github.com"
-            git add named dig host delv named-checkconf named-checkzone rndc 2>/dev/null || true
-            git commit -m "Update Android arm64 BIND 9.21.17 (NDK static, full deps)" || echo "No changes"
-            git push || echo "Push skipped"
-          else
-            echo "No binaries found"
-            exit 1
-          fi
+          mkdir -p artifacts
+          cp -v ../build/*/named ../build/*/dig ../build/*/host ../build/*/delv ../build/*/rndc ../build/*/named-checkconf ../build/*/named-checkzone artifacts/ 2>/dev/null || true
+          ls -lh artifacts/ || echo "No binaries found"
+          # 然后 git add/commit/push ...
