@@ -341,7 +341,9 @@ jobs:
           echo "=== zlib installed at /opt/zlib-android ==="
           ls -l /opt/zlib-android/lib/
           pkg-config --libs zlib
-          
+      
+      
+      
       - name: Disable all tests to avoid linking libuv/OpenSSL in shared library
         working-directory: bind9-source
         run: |
@@ -361,13 +363,6 @@ jobs:
         run: |
           set -e
           set -o pipefail
-
-          echo "=== 重新解压 BIND9 源码（恢复干净 meson.build）==="
-          # cd ..
-          rm -rf bind9-source
-          tar xf bind-9.21.17.tar.xz
-          mv bind-9.21.17 bind9-source
-          cd bind9-source
 
           echo "=== 精确 patch meson.build（只注释 fuzz 子目录，不破坏 if/endif）==="
           python3 -c '
