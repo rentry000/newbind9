@@ -455,9 +455,48 @@ jobs:
           find ../build -type f -executable \( -name named -o -name dig -o -name host -o -name delv -o -name rndc -o -name named-checkconf -o -name named-checkzone \) 2>/dev/null || echo "No executables found"
       
                           
-      - name: Collect & commit binaries
+      - name: Collect & commit binaries to repository
         run: |
+          set -e
+          set -o pipefail
+      
+          echo "=== Collecting BIND9 binaries ==="
+      
+          # 构建目录在仓库根目录的 build/（meson setup ../build）
           mkdir -p artifacts
-          cp -v ../build/*/named ../build/*/dig ../build/*/host ../build/*/delv ../build/*/rndc ../build/*/named-checkconf ../build/*/named-checkzone artifacts/ 2>/dev/null || true
-          ls -lh artifacts/ || echo "No binaries found"
-          # 然后 git add/commit/push ...
+      
+          # 智能复制所有可执行文件（避免路径问题）
+          for bin in named dig host delv rndc named-checkconf named-checkzone; do
+            find build -type f -name "$bin" -executable -exec cp -v {} artifacts/ \; || true
+          done
+      
+          echo "=== Binaries 列表 ==="
+          ls -lh artifacts/ || echo "⚠️ 没有找到任何二进制文件"
+      
+          if [ ! "$(ls -A artifacts/ 2>/dev/null)" ]; then
+            echo "❌ 未找到二进制文件，上传中止"
+            exit 1
+          fi
+      
+          echo "=== 准备 Git 提交 ==="
+          # 复制到仓库根目录（方便直接 commit）
+          cp -v artifacts/* ./ 2>/dev/null || true
+      
+          # 设置 git 信息
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      
+          # 添加文件并检查是否有变更
+          git add named dig host delv rndc named-checkconf named-checkzone 2>/dev/null || true
+      
+          if git diff --staged --quiet; then
+            echo "⚠️ 没有新变更，跳过提交"
+          else
+            git commit -m "Update Android arm64 BIND 9.21.17 (NDK static, full deps) - $(date +'%Y-%m-%d %H:%M:%S')"
+            echo "✅ 提交成功，正在推送..."
+            git push
+            echo "🎉 已成功推送到仓库！"
+          fi
+      
+          echo "=== 最终仓库根目录二进制文件 ==="
+          ls -lh named dig host delv rndc named-checkconf named-checkzone 2>/dev/null || true
