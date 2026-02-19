@@ -363,7 +363,7 @@ jobs:
           set -o pipefail
 
           echo "=== 重新解压 BIND9 源码（恢复干净 meson.build）==="
-          cd ..
+          # cd ..
           rm -rf bind9-source
           tar xf bind-9.21.17.tar.xz
           mv bind-9.21.17 bind9-source
