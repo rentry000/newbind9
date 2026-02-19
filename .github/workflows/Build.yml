@@ -70,21 +70,41 @@ jobs:
 
       - name: Cross-compile libuv for Android arm64 (static)
         run: |
+          set -e
+          set -o pipefail
+      
+          echo "=== 下载并进入 libuv v1.48.0 ==="
           git clone https://github.com/libuv/libuv.git
           cd libuv
           git checkout v1.48.0
       
-          echo "=== 关键 Patch：强制禁用 Android 上有问题的 getentropy 路径 ==="
-          # 这行是解决 undefined symbol 的核心（让它走 /dev/urandom 兜底）
-          sed -i 's/#if defined(__ANDROID__) && __ANDROID_API__ >= 28/#if 0/' src/unix/random.c
+          echo "=== Debug: 检查所有 random 相关文件（关键！）==="
+          ls -la src/unix/ 2>/dev/null | grep -E 'random' || echo "【注意】src/unix/ 中暂无 random 文件"
+          find . -name "*random*.c" -type f | head -10
+      
+          echo "=== 智能 Patch：禁用 Android getentropy 路径（解决 undefined symbol）==="
+          PATCH_COUNT=0
+          for f in $(find . -name "*random*.c" -type f 2>/dev/null); do
+            if grep -q "__ANDROID__" "$f" 2>/dev/null; then
+              sed -i 's/defined(__ANDROID__) && __ANDROID_API__ >= 28/0 \/\/ patched for Android/g' "$f"
+              echo "✅ 已 patch: $f"
+              PATCH_COUNT=$((PATCH_COUNT + 1))
+            fi
+          done
+      
+          if [ $PATCH_COUNT -eq 0 ]; then
+            echo "⚠️ 未找到 Android 条件，使用环境变量兜底"
+          else
+            echo "🎉 共 patch 了 $PATCH_COUNT 个文件"
+          fi
       
           ./autogen.sh
       
-          # 正确设置 ac_cv（这次一定会生效）
+          # 核心环境变量（必须在 configure 之前）
           export ac_cv_func_getentropy=no
           export ac_cv_func_getrandom=no
       
-          echo "=== Configuring libuv ==="
+          echo "=== 配置 libuv ==="
           ./configure \
             --host=aarch64-linux-android \
             --prefix=/opt/libuv-android \
@@ -97,12 +117,14 @@ jobs:
             CFLAGS="--target=aarch64-linux-android34 -fPIC -O2 -D_FILE_OFFSET_BITS=64" \
             LDFLAGS="--target=aarch64-linux-android34"
       
+          echo "=== 编译并安装 ==="
           make -j$(nproc)
           make install
       
-          echo "=== libuv 编译完成 ==="
+          echo "=== 验证 libuv ==="
           ls -lh /opt/libuv-android/lib/libuv.a
-
+          file /opt/libuv-android/lib/libuv.a
+      
       - name: Cross-compile liburcu for Android arm64 (static)
         run: |
           git clone https://git.liburcu.org/userspace-rcu.git
